@@ -1,0 +1,11 @@
+仪表工坊 0.1.0
+
+本应用的声音管理、镜像管理和界面为独立实现，不包含 Custom Profiles 的代码或素材。
+
+EROFS 工具：erofs-utils 1.9.1 / 1.8.10。工具按 GPL-2.0-or-later 分发，部分库按 GPL-2.0-or-later OR Apache-2.0 双许可，详见 erofs/ 内许可证。对应源码及兼容性修改、构建脚本位于随版本提供的源码工程 vendor/、native/ 和 tools/。分发者必须提供对应源码并遵守许可证。
+
+SSH：JSch 0.2.20，Revised BSD；内含 JZlib (Revised BSD) 及 jBCrypt (ISC)，详见 jsch/ 内许可证。
+
+构建使用 Android Gradle Plugin、Gradle 和 Kotlin 运行库；测试依赖只在测试包中。
+
+镜像保存在当前 Android 用户的 Documents/EVDashboard，不会上传网络。删除的镜像记录移入 deleted-* 恢复目录，不自动清空。应用内的原始镜像保护不能阻止其他文件管理器、root 程序或恢复出厂设置删除备份。

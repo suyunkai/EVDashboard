@@ -1,0 +1,367 @@
+/* config.h.in.  Generated from configure.ac by autoheader.  */
+
+/* The maximum block size which erofs-utils supports */
+#undef EROFS_MAX_BLOCK_SIZE
+
+/* Enable multi-threading support */
+#undef EROFS_MT_ENABLED
+
+/* used FUSE API version */
+#undef FUSE_USE_VERSION
+
+/* Define to 1 if 'TIOCGWINSZ' requires <sys/ioctl.h>. */
+#undef GWINSZ_IN_SYS_IOCTL
+
+/* Define to 1 if you have the 'backtrace' function. */
+#undef HAVE_BACKTRACE
+
+/* Define to 1 if you have the 'copy_file_range' function. */
+#undef HAVE_COPY_FILE_RANGE
+
+/* Define to 1 if you have the <curl/curl.h> header file. */
+#undef HAVE_CURL_CURL_H
+
+/* Define to 1 if you have the <dirent.h> header file. */
+#undef HAVE_DIRENT_H
+
+/* Define to 1 if you have the <dlfcn.h> header file. */
+#undef HAVE_DLFCN_H
+
+/* Define to 1 if you have the <endian.h> header file. */
+#undef HAVE_ENDIAN_H
+
+/* Define to 1 if you have the <execinfo.h> header file. */
+#undef HAVE_EXECINFO_H
+
+/* Define to 1 if you have the 'fallocate' function. */
+#undef HAVE_FALLOCATE
+
+/* Define to 1 if you have the <fcntl.h> header file. */
+#undef HAVE_FCNTL_H
+
+/* Define to 1 if you have the 'fstatfs' function. */
+#undef HAVE_FSTATFS
+
+/* Define to 1 if you have the <getopt.h> header file. */
+#undef HAVE_GETOPT_H
+
+/* Define to 1 if you have the 'getrandom' function. */
+#undef HAVE_GETRANDOM
+
+/* Define to 1 if you have the 'getrlimit' function. */
+#undef HAVE_GETRLIMIT
+
+/* Define to 1 if you have the 'gettimeofday' function. */
+#undef HAVE_GETTIMEOFDAY
+
+/* Define to 1 if you have the <inttypes.h> header file. */
+#undef HAVE_INTTYPES_H
+
+/* Define to 1 if you have the <json-c/json.h> header file. */
+#undef HAVE_JSON_C_JSON_H
+
+/* Define to 1 if you have the 'lgetxattr' function. */
+#undef HAVE_LGETXATTR
+
+/* Define to 1 if libcurl is found */
+#undef HAVE_LIBCURL
+
+/* Define to 1 if libdeflate is found */
+#undef HAVE_LIBDEFLATE
+
+/* Define to 1 if you have the 'fuse' library (-lfuse). */
+#undef HAVE_LIBFUSE
+
+/* Define to 1 if you have the 'fuse3' library (-lfuse3). */
+#undef HAVE_LIBFUSE3
+
+/* Define to 1 if liblzma is enabled. */
+#undef HAVE_LIBLZMA
+
+/* Define to 1 if you have the 'nl-genl-3' library (-lnl-genl-3). */
+#undef HAVE_LIBNL_GENL_3
+
+/* Define to 1 if you have the 'pthread' library (-lpthread). */
+#undef HAVE_LIBPTHREAD
+
+/* Define to 1 if you have the 'qpl' library (-lqpl). */
+#undef HAVE_LIBQPL
+
+/* Define to 1 if libselinux is found */
+#undef HAVE_LIBSELINUX
+
+/* Define to 1 if you have the 'ssl' library (-lssl). */
+#undef HAVE_LIBSSL
+
+/* Define to 1 if libuuid is found */
+#undef HAVE_LIBUUID
+
+/* Define to 1 if libxml2 is found */
+#undef HAVE_LIBXML2
+
+/* Define to 1 if you have the <libxml/parser.h> header file. */
+#undef HAVE_LIBXML_PARSER_H
+
+/* Define to 1 if you have the 'xxhash' library (-lxxhash). */
+#undef HAVE_LIBXXHASH
+
+/* Define to 1 if you have the 'z' library (-lz). */
+#undef HAVE_LIBZ
+
+/* Define to 1 if libzstd is found */
+#undef HAVE_LIBZSTD
+
+/* Define to 1 if you have the <limits.h> header file. */
+#undef HAVE_LIMITS_H
+
+/* Define to 1 if you have the <linux/aufs_type.h> header file. */
+#undef HAVE_LINUX_AUFS_TYPE_H
+
+/* Define to 1 if you have the <linux/falloc.h> header file. */
+#undef HAVE_LINUX_FALLOC_H
+
+/* Define to 1 if you have the <linux/fs.h> header file. */
+#undef HAVE_LINUX_FS_H
+
+/* Define to 1 if you have the <linux/loop.h> header file. */
+#undef HAVE_LINUX_LOOP_H
+
+/* Define to 1 if you have the <linux/types.h> header file. */
+#undef HAVE_LINUX_TYPES_H
+
+/* Define to 1 if you have the <linux/xattr.h> header file. */
+#undef HAVE_LINUX_XATTR_H
+
+/* Define to 1 if you have the 'llistxattr' function. */
+#undef HAVE_LLISTXATTR
+
+/* Define to 1 if you have the 'lsetxattr' function. */
+#undef HAVE_LSETXATTR
+
+/* Define to 1 if you have the <lz4.h> header file. */
+#undef HAVE_LZ4_H
+
+/* Define to 1 if you have the <lzma.h> header file. */
+#undef HAVE_LZMA_H
+
+/* Define to 1 if memrchr declared in string.h */
+#undef HAVE_MEMRCHR
+
+/* Define to 1 if you have the 'memset' function. */
+#undef HAVE_MEMSET
+
+/* Define to 1 if you have the <netlink/genl/genl.h> header file. */
+#undef HAVE_NETLINK_GENL_GENL_H
+
+/* Define to 1 if openssl is found */
+#undef HAVE_OPENSSL
+
+/* Define to 1 if you have the <openssl/evp.h> header file. */
+#undef HAVE_OPENSSL_EVP_H
+
+/* Define to 1 if you have the <openssl/hmac.h> header file. */
+#undef HAVE_OPENSSL_HMAC_H
+
+/* Define to 1 if you have the 'posix_fadvise' function. */
+#undef HAVE_POSIX_FADVISE
+
+/* Define to 1 if you have the 'pread64' function. */
+#undef HAVE_PREAD64
+
+/* Define to 1 if you have the <pthread.h> header file. */
+#undef HAVE_PTHREAD_H
+
+/* Define to 1 if you have the 'pwrite64' function. */
+#undef HAVE_PWRITE64
+
+/* Define to 1 if you have the 'pwritev' function. */
+#undef HAVE_PWRITEV
+
+/* Define to 1 if qpl is found */
+#undef HAVE_QPL
+
+/* Define to 1 if you have the <qpl/qpl.h> header file. */
+#undef HAVE_QPL_QPL_H
+
+/* Define to 1 if you have the 'realpath' function. */
+#undef HAVE_REALPATH
+
+/* Define to 1 if you have the 'sendfile' function. */
+#undef HAVE_SENDFILE
+
+/* Define to 1 if you have the <stddef.h> header file. */
+#undef HAVE_STDDEF_H
+
+/* Define to 1 if you have the <stdint.h> header file. */
+#undef HAVE_STDINT_H
+
+/* Define to 1 if you have the <stdio.h> header file. */
+#undef HAVE_STDIO_H
+
+/* Define to 1 if you have the <stdlib.h> header file. */
+#undef HAVE_STDLIB_H
+
+/* Define to 1 if you have the 'strdup' function. */
+#undef HAVE_STRDUP
+
+/* Define to 1 if you have the 'strerror' function. */
+#undef HAVE_STRERROR
+
+/* Define to 1 if you have the <strings.h> header file. */
+#undef HAVE_STRINGS_H
+
+/* Define to 1 if you have the <string.h> header file. */
+#undef HAVE_STRING_H
+
+/* Define to 1 if you have the 'strrchr' function. */
+#undef HAVE_STRRCHR
+
+/* Define to 1 if you have the 'strtoull' function. */
+#undef HAVE_STRTOULL
+
+/* Define to 1 if 'cache_readdir' is a member of 'struct fuse_file_info'. */
+#undef HAVE_STRUCT_FUSE_FILE_INFO_CACHE_READDIR
+
+/* Define to 1 if 'keep_cache' is a member of 'struct fuse_file_info'. */
+#undef HAVE_STRUCT_FUSE_FILE_INFO_KEEP_CACHE
+
+/* Define to 1 if 'st_atim' is a member of 'struct stat'. */
+#undef HAVE_STRUCT_STAT_ST_ATIM
+
+/* Define to 1 if 'st_atimensec' is a member of 'struct stat'. */
+#undef HAVE_STRUCT_STAT_ST_ATIMENSEC
+
+/* Define to 1 if 'st_rdev' is a member of 'struct stat'. */
+#undef HAVE_STRUCT_STAT_ST_RDEV
+
+/* Define to 1 if you have the 'sysconf' function. */
+#undef HAVE_SYSCONF
+
+/* Define to 1 if you have the <sys/ioctl.h> header file. */
+#undef HAVE_SYS_IOCTL_H
+
+/* Define to 1 if you have the <sys/mman.h> header file. */
+#undef HAVE_SYS_MMAN_H
+
+/* Define to 1 if you have the <sys/random.h> header file. */
+#undef HAVE_SYS_RANDOM_H
+
+/* Define to 1 if you have the <sys/resource.h> header file. */
+#undef HAVE_SYS_RESOURCE_H
+
+/* Define to 1 if you have the <sys/sendfile.h> header file. */
+#undef HAVE_SYS_SENDFILE_H
+
+/* Define to 1 if you have the <sys/statfs.h> header file. */
+#undef HAVE_SYS_STATFS_H
+
+/* Define to 1 if you have the <sys/stat.h> header file. */
+#undef HAVE_SYS_STAT_H
+
+/* Define to 1 if you have the <sys/sysmacros.h> header file. */
+#undef HAVE_SYS_SYSMACROS_H
+
+/* Define to 1 if you have the <sys/time.h> header file. */
+#undef HAVE_SYS_TIME_H
+
+/* Define to 1 if you have the <sys/types.h> header file. */
+#undef HAVE_SYS_TYPES_H
+
+/* Define to 1 if you have the <sys/uio.h> header file. */
+#undef HAVE_SYS_UIO_H
+
+/* Define to 1 if you have the <sys/xattr.h> header file. */
+#undef HAVE_SYS_XATTR_H
+
+/* Define to 1 if you have the <unistd.h> header file. */
+#undef HAVE_UNISTD_H
+
+/* Define to 1 if you have the 'utimensat' function. */
+#undef HAVE_UTIMENSAT
+
+/* Define to 1 if xxhash is found */
+#undef HAVE_XXHASH
+
+/* Define to 1 if you have the <xxhash.h> header file. */
+#undef HAVE_XXHASH_H
+
+/* Define to 1 if zlib is found */
+#undef HAVE_ZLIB
+
+/* Define to 1 if you have the <zlib.h> header file. */
+#undef HAVE_ZLIB_H
+
+/* Define to 1 if you have the 'ZSTD_getFrameContentSize' function. */
+#undef HAVE_ZSTD_GETFRAMECONTENTSIZE
+
+/* Define to 1 if you have the <zstd.h> header file. */
+#undef HAVE_ZSTD_H
+
+/* Define to the sub-directory where libtool stores uninstalled libraries. */
+#undef LT_OBJDIR
+
+/* Define to 1 if lz4hc is enabled. */
+#undef LZ4HC_ENABLED
+
+/* Define to 1 if lz4 is enabled. */
+#undef LZ4_ENABLED
+
+/* Define to 1 if OCI registry is enabled */
+#undef OCIEROFS_ENABLED
+
+/* Name of package */
+#undef PACKAGE
+
+/* Define to the address where bug reports for this package should be sent. */
+#undef PACKAGE_BUGREPORT
+
+/* Define to the full name of this package. */
+#undef PACKAGE_NAME
+
+/* Define to the full name and version of this package. */
+#undef PACKAGE_STRING
+
+/* Define to the one symbol short name of this package. */
+#undef PACKAGE_TARNAME
+
+/* Define to the home page for this package. */
+#undef PACKAGE_URL
+
+/* Define to the version of this package. */
+#undef PACKAGE_VERSION
+
+/* Define to 1 if s3 is enabled */
+#undef S3EROFS_ENABLED
+
+/* Define to 1 if all of the C89 standard headers exist (not just the ones
+   required in a freestanding environment). This macro is provided for
+   backward compatibility; new code need not use it. */
+#undef STDC_HEADERS
+
+/* Version number of package */
+#undef VERSION
+
+/* Define for Solaris 2.5.1 so the uint64_t typedef from <sys/synch.h>,
+   <pthread.h>, or <semaphore.h> is not used. If the typedef were allowed, the
+   #define below would cause a syntax error. */
+#undef _UINT64_T
+
+/* Define to '__inline__' or '__inline' if that's what the C compiler
+   calls it, or to nothing if 'inline' is not supported under any name.  */
+#ifndef __cplusplus
+#undef inline
+#endif
+
+/* Define to the type of a signed integer type of width exactly 64 bits if
+   such a type exists and the standard includes do not define it. */
+#undef int64_t
+
+/* Define as 'unsigned int' if <stddef.h> doesn't define. */
+#undef size_t
+
+/* Define as 'int' if <sys/types.h> doesn't define. */
+#undef ssize_t
+
+/* Define to the type of an unsigned integer type of width exactly 64 bits if
+   such a type exists and the standard includes do not define it. */
+#undef uint64_t

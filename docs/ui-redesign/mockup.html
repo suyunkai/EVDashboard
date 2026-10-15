@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>仪表工坊 UI 候选稿 · 2560×1600</title>
+<!-- 用法：mockup.html?t=cockpit|paper|native|blueprint&p=audio|workshop
+     画布 1:1 对应 5560 设备：2560×1600 px @160dpi；应用区 = 2560×1344（顶部状态栏 96px、底部 Dock 160px 为系统绘制）。 -->
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:2560px;height:1600px;overflow:hidden;background:#000;font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;-webkit-font-smoothing:antialiased}
+.screen{width:2560px;height:1600px;display:flex;flex-direction:column}
+.sysbar{height:96px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 56px;font-size:34px;font-weight:600;background:var(--bg);color:var(--ink);position:relative;z-index:3}
+.sysbar .ph{font-size:22px;font-weight:500;color:var(--mut);letter-spacing:.04em}
+.dock{height:160px;flex:none;background:#12161B;color:#D5DAE0;display:flex;align-items:center;padding:0 64px;gap:56px;font-size:38px}
+.dock .o{width:68px;height:68px;border:7px solid #D5DAE0;border-radius:50%}
+.dock .ic{width:60px;height:60px;border:5px solid #59616B;border-radius:14px;margin-left:auto}
+.dock .ic+.ic{margin-left:0}
+.dock .ph{margin-left:auto;font-size:22px;color:#59616B}
+.app{height:1344px;flex:none;position:relative;overflow:hidden;background:var(--bg);color:var(--ink);font-size:30px;line-height:1.35;display:flex}
+.app::after{content:"";position:absolute;left:0;right:0;bottom:0;height:56px;background:linear-gradient(transparent,var(--bg));pointer-events:none;z-index:2}
+
+/* ---- tokens ---- */
+.t-cockpit{--bg:#0A0E13;--surf:#111820;--surf2:#17212B;--line:#223040;--ink:#E9F0F5;--mut:#8FA3B3;--acc:#4FD1E8;--acc-ink:#03242B;--warn:#FFB547;--danger:#FF6B5E;--ok:#4ADE9A;--field:#0C1218;--btn2:#1A2531;--btn2ink:#DCE8F0;--r:24px;--rb:18px;--rf:14px;--danger-bg:rgba(255,107,94,.10);--danger-line:rgba(255,107,94,.45);--warn-bg:rgba(255,181,71,.10);--warn-line:rgba(255,181,71,.38)}
+.t-paper{--bg:#F3F0E8;--surf:#FFFFFF;--surf2:#F8F5EE;--line:#E6E0D2;--ink:#1B1E1C;--mut:#6F7269;--acc:#1B6B50;--acc-ink:#fff;--warn:#A9531F;--danger:#B3341F;--ok:#1B6B50;--field:#FBFAF6;--btn2:#EFEADD;--btn2ink:#1B1E1C;--r:30px;--rb:48px;--rf:20px;--danger-bg:#FBEDE8;--danger-line:#E9B9AB;--warn-bg:#FBF1E4;--warn-line:#EBCFA9}
+.t-native{--bg:#EDF0F4;--surf:#FFFFFF;--surf2:#F3F5F8;--line:#E3E8EE;--ink:#141A22;--mut:#667385;--acc:#2D6BFF;--acc-ink:#fff;--warn:#B8650A;--danger:#D6342B;--ok:#13A06F;--field:#F3F5F8;--btn2:#EAF0FF;--btn2ink:#2D6BFF;--r:40px;--rb:30px;--rf:24px;--danger-bg:#FDECEA;--danger-line:#F3B9B4;--warn-bg:#FFF3E0;--warn-line:#F2D2A2}
+.t-blueprint{--bg:#0A1827;--surf:rgba(16,44,70,.55);--surf2:#10304D;--line:#2A4C6E;--ink:#DCEBF8;--mut:#8DA8C2;--acc:#5BC8FF;--acc-ink:#04202F;--warn:#FFC24A;--danger:#FF7A6B;--ok:#5EE0A8;--field:#07131E;--btn2:#10304D;--btn2ink:#CFE6F8;--r:10px;--rb:8px;--rf:6px;--danger-bg:rgba(255,122,107,.10);--danger-line:rgba(255,122,107,.55);--warn-bg:rgba(255,194,74,.10);--warn-line:rgba(255,194,74,.5)}
+.t-blueprint .app{background-color:var(--bg);background-image:linear-gradient(rgba(91,200,255,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(91,200,255,.055) 1px,transparent 1px);background-size:48px 48px}
+
+/* ---- primitives ---- */
+.grow{flex:1;min-width:0}
+.col{display:flex;flex-direction:column;gap:28px;min-width:0}
+.row{display:flex;gap:20px;align-items:center}
+.wrap{flex-wrap:wrap}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px}
+.mono{font-family:ui-monospace,"SF Mono",Menlo,monospace}
+.sub{color:var(--mut);font-size:26px;line-height:1.4}
+.card{background:var(--surf);border:1px solid var(--line);border-radius:var(--r);padding:34px 38px;display:flex;flex-direction:column;gap:22px;min-width:0}
+.card-h{display:flex;align-items:center;gap:18px}
+.card-h h3{font-size:36px;font-weight:700;letter-spacing:.01em}
+.card-h .chip{margin-left:auto}
+svg{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.btn i{font-size:36px;display:flex}
+.btn{height:96px;padding:0 34px;border-radius:var(--rb);display:inline-flex;align-items:center;justify-content:center;gap:14px;font-size:30px;font-weight:600;background:var(--btn2);color:var(--btn2ink);border:1px solid var(--line);white-space:nowrap;font-family:inherit}
+.btn.primary{background:var(--acc);color:var(--acc-ink);border-color:transparent}
+.btn.danger{background:var(--danger-bg);color:var(--danger);border-color:var(--danger-line)}
+.btn.warn{background:var(--warn-bg);color:var(--warn);border-color:var(--warn-line)}
+.btn.locked{opacity:.5;border-style:dashed}
+.btn.block{width:100%}
+.btn.big{height:112px;font-size:32px}
+.btn.sm{height:72px;padding:0 26px;font-size:26px}
+.sw-l{text-wrap:balance}
+.app>div{height:100%}
+.field{display:flex;flex-direction:column;gap:10px;min-width:0}
+.field label{font-size:24px;color:var(--mut);font-weight:500}
+.inp{height:96px;border-radius:var(--rf);background:var(--field);border:2px solid var(--line);display:flex;align-items:center;padding:0 28px;font-size:32px;gap:10px}
+.inp.ph{color:var(--mut);opacity:.75;font-size:28px}
+.inp .unit{margin-left:auto;color:var(--mut);font-size:26px}
+.sw{display:flex;align-items:center;gap:24px;min-height:100px}
+.sw-l{font-size:30px;font-weight:600}
+.tog{width:104px;height:60px;border-radius:30px;background:var(--line);position:relative;flex:none}
+.tog b{position:absolute;left:6px;top:6px;width:48px;height:48px;border-radius:50%;background:var(--mut);opacity:.9}
+.tog.on{background:var(--acc)}.tog.on b{left:50px;background:#fff;opacity:1}
+.chip{height:52px;padding:0 22px;border-radius:26px;font-size:24px;font-weight:600;display:inline-flex;align-items:center;gap:10px;border:1px solid var(--line);color:var(--mut);background:transparent;white-space:nowrap}
+.chip svg{font-size:26px}
+.chip.ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,transparent);background:color-mix(in srgb,var(--ok) 10%,transparent)}
+.chip.warn{color:var(--warn);border-color:var(--warn-line);background:var(--warn-bg)}
+.chip.danger{color:var(--danger);border-color:var(--danger-line);background:var(--danger-bg)}
+.chip.acc{color:var(--acc);border-color:color-mix(in srgb,var(--acc) 45%,transparent);background:color-mix(in srgb,var(--acc) 10%,transparent)}
+.callout{border-radius:var(--rf);padding:20px 26px;font-size:26px;line-height:1.45;background:var(--warn-bg);border:1px solid var(--warn-line);color:var(--ink)}
+.callout b{color:var(--warn)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:12px 28px;font-size:26px}
+.kv dt{color:var(--mut)}.kv dd{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.img{display:flex;align-items:center;gap:24px;padding:22px 26px;border-radius:calc(var(--rb) + 2px);border:2px solid transparent;background:var(--surf2);min-height:132px}
+.img.sel{border-color:var(--acc);background:color-mix(in srgb,var(--acc) 9%,var(--surf2))}
+.img .rd{width:40px;height:40px;border-radius:50%;border:3px solid var(--mut);flex:none}
+.img.sel .rd{border-color:var(--acc);background:radial-gradient(var(--acc) 0 9px,transparent 10px)}
+.img .nm{font-size:30px;font-weight:600}
+.img .meta{font-size:24px;color:var(--mut);margin-top:6px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.dz{border:2px solid var(--danger-line);background:var(--danger-bg);border-radius:var(--r);padding:26px 28px;display:flex;flex-direction:column;gap:18px}
+.dz-h{display:flex;align-items:center;gap:14px;font-size:26px;font-weight:700;color:var(--danger)}
+.dz-h span{margin-left:auto;font-weight:500;font-size:23px;color:var(--mut)}
+.taskbar{height:92px;flex:none;border-radius:calc(var(--r) - 4px);background:var(--surf);border:1px solid var(--line);display:flex;align-items:center;gap:22px;padding:0 32px;font-size:26px}
+.taskbar .dot{width:18px;height:18px;border-radius:50%;background:var(--ok)}
+.taskbar .st{font-weight:700;font-size:28px}
+.taskbar .msg{color:var(--mut);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.taskbar .bar{width:360px;height:10px;border-radius:5px;background:var(--line)}
+.slot{display:flex;align-items:baseline;gap:20px}
+.slot .big{font-size:84px;font-weight:700;line-height:1;color:var(--acc);letter-spacing:-.01em}
+.page-h{display:flex;align-items:flex-end;gap:24px;margin-bottom:6px}
+.page-h h1{font-size:56px;font-weight:800;letter-spacing:.01em;line-height:1.1}
+.page-h .chips{margin-left:auto;display:flex;gap:14px}
+.nav-i{display:flex;align-items:center;gap:18px;height:116px;padding:0 24px;border-radius:22px;font-size:30px;white-space:nowrap;font-weight:600;color:var(--mut);position:relative}
+.nav-i i{font-size:44px;display:flex}
+.nav-i.on{background:var(--surf2);color:var(--ink)}
+.nav-i.on::before{content:"";position:absolute;left:0;top:26px;bottom:26px;width:6px;border-radius:3px;background:var(--acc)}
+.nav-i.on i{color:var(--acc)}
+
+/* ============ A · 夜航 Cockpit ============ */
+.t-cockpit .rail{width:384px;flex:none;background:#0D131A;border-right:1px solid var(--line);padding:36px 24px;display:flex;flex-direction:column;gap:12px}
+.t-cockpit .brand{display:flex;align-items:center;gap:18px;padding:0 8px 28px;font-size:38px;font-weight:800}
+.t-cockpit .brand i{width:64px;height:64px;border-radius:18px;background:linear-gradient(145deg,#4FD1E8,#2A8FB5);display:flex;align-items:center;justify-content:center;color:#03242B;font-size:40px}
+.t-cockpit .rail .dev{margin-top:auto;border:1px solid var(--line);border-radius:20px;padding:22px 24px;background:var(--surf)}
+.t-cockpit .rail .dev .k{font-size:21px;color:var(--mut);letter-spacing:.14em}
+.t-cockpit .rail .dev .v{font-size:40px;font-weight:700;color:var(--acc);margin:4px 0 2px}
+.t-cockpit .main{flex:1;min-width:0;padding:30px 40px 24px;display:flex;flex-direction:column;gap:24px}
+.t-cockpit .body{flex:1;min-height:0;display:grid;gap:28px;overflow:hidden}
+.t-cockpit .card-h h3::before{content:"";display:inline-block;width:8px;height:30px;border-radius:4px;background:var(--acc);margin-right:16px;vertical-align:-4px}
+.t-cockpit .inp.mono{letter-spacing:.02em}
+
+/* ============ B · 纸感 Paper ============ */
+.t-paper .app{flex-direction:column}
+.t-paper .top{height:128px;flex:none;display:flex;align-items:center;gap:36px;padding:0 48px;border-bottom:1px solid var(--line)}
+.t-paper .top h1{font-size:44px;font-weight:800;display:flex;align-items:center;gap:18px}
+.t-paper .top h1 i{width:56px;height:56px;border-radius:50%;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:center;font-size:32px}
+.t-paper .seg{display:flex;background:#E8E3D6;border-radius:56px;padding:8px;margin-left:56px}
+.t-paper .seg div{height:80px;padding:0 44px;display:flex;align-items:center;border-radius:48px;font-size:30px;font-weight:600;color:var(--mut)}
+.t-paper .seg div.on{background:#fff;color:var(--ink);box-shadow:0 2px 10px rgba(40,30,10,.12)}
+.t-paper .top .chips{margin-left:auto;display:flex;gap:14px}
+.t-paper .content{flex:1;min-height:0;padding:34px 48px 20px;display:flex;flex-direction:column;gap:24px}
+.t-paper .cols{flex:1;min-height:0;display:grid;gap:28px;overflow:hidden}
+.t-paper .card{border:none;box-shadow:0 1px 2px rgba(60,45,10,.06),0 10px 30px rgba(60,45,10,.06)}
+.t-paper .card-h h3{font-size:34px}
+.t-paper .card-h .no{font-size:24px;font-weight:700;color:var(--mut);font-family:ui-monospace,Menlo,monospace;letter-spacing:.06em}
+.t-paper .taskbar{height:84px;border:none;box-shadow:0 1px 2px rgba(60,45,10,.06),0 6px 20px rgba(60,45,10,.06)}
+.t-paper .btn{border:none}
+.t-paper .btn.danger,.t-paper .btn.warn{border:1px solid var(--danger-line)}
+.t-paper .btn.warn{border-color:var(--warn-line)}
+
+/* ============ C · 车机原生 Native ============ */
+.t-native .master{width:700px;flex:none;padding:30px 28px 28px 40px;display:flex;flex-direction:column;gap:20px}
+.t-native .master h1{font-size:50px;font-weight:800;padding:0 8px}
+.t-native .seg{display:flex;background:#DDE3EB;border-radius:30px;padding:8px}
+.t-native .seg div{flex:1;height:88px;display:flex;align-items:center;justify-content:center;border-radius:24px;font-size:29px;font-weight:700;color:var(--mut)}
+.t-native .seg div.on{background:#fff;color:var(--ink);box-shadow:0 2px 8px rgba(20,30,50,.12)}
+.t-native .sec{display:flex;align-items:center;gap:26px;padding:0 26px;height:132px;border-radius:30px;font-size:31px;font-weight:700}
+.t-native .sec .ib{width:76px;height:76px;border-radius:22px;display:flex;align-items:center;justify-content:center;font-size:42px;color:#fff;flex:none}
+.t-native .sec small{display:block;font-size:23px;font-weight:500;color:var(--mut);margin-top:2px}
+.t-native .sec.on{background:#fff;box-shadow:0 8px 28px rgba(30,50,90,.10)}
+.t-native .sec .cv{font-size:30px;color:var(--mut);opacity:.7}
+.t-native .detail{flex:1;min-width:0;padding:30px 40px 24px 12px;display:flex;flex-direction:column;gap:22px}
+.t-native .pane{flex:1;min-height:0;background:#fff;border-radius:44px;padding:36px 44px;display:flex;flex-direction:column;gap:18px;overflow:hidden;box-shadow:0 8px 28px rgba(30,50,90,.07)}
+.t-native .pane>h2{font-size:42px;font-weight:800;display:flex;align-items:center;gap:18px}
+.t-native .group{background:var(--surf2);border-radius:30px;overflow:hidden}
+.t-native .group>*+*{border-top:1px solid var(--line)}
+.t-native .grow-r{display:flex;align-items:center;gap:24px;min-height:100px;padding:0 32px;font-size:30px;font-weight:600}
+.t-native .grow-r .v{margin-left:auto;color:var(--mut);font-weight:500;font-size:28px}
+.t-native .grow-r.act{color:var(--acc)}
+.t-native .grow-r.act::after{content:"›";margin-left:auto;font-size:44px;font-weight:400;opacity:.7}
+.t-native .grow-r.dng{color:var(--danger)}
+.t-native .grow-r.dng::after{content:"›";margin-left:auto;font-size:44px;font-weight:400;opacity:.7}
+.t-native .group .sw{padding:0 32px}
+.t-native .group .field{padding:16px 32px 20px}
+.t-native .group .inp{background:#fff}
+.t-native .taskbar{border:none;box-shadow:0 8px 28px rgba(30,50,90,.10);height:88px}
+.t-native .img{background:transparent;border-radius:0;border:none;border-left:6px solid transparent;min-height:124px}
+.t-native .img.sel{border-left-color:var(--acc);background:#EAF0FF}
+.t-native .gcap{font-size:23px;font-weight:700;color:var(--mut);letter-spacing:.08em;padding:6px 14px 0}
+.t-native .pfoot{margin-top:auto;display:flex;gap:18px}
+
+/* ============ D · 蓝图 Blueprint ============ */
+.t-blueprint .app{flex-direction:column}
+.t-blueprint .top{height:124px;flex:none;display:flex;align-items:center;gap:40px;padding:0 44px;border-bottom:1px solid var(--line);background:rgba(7,19,30,.78)}
+.t-blueprint .kicker{font-family:ui-monospace,Menlo,monospace;letter-spacing:.16em;font-size:20px;color:var(--acc);text-transform:uppercase}
+.t-blueprint .top h1{font-size:44px;font-weight:800;line-height:1.05}
+.t-blueprint .tabs{display:flex;gap:6px;margin-left:48px;height:100%}
+.t-blueprint .tabs div{display:flex;align-items:center;padding:0 40px;font-size:30px;font-weight:600;color:var(--mut);border-bottom:6px solid transparent;margin-top:6px}
+.t-blueprint .tabs div.on{color:var(--ink);border-bottom-color:var(--acc)}
+.t-blueprint .top .chips{margin-left:auto;display:flex;gap:14px}
+.t-blueprint .content{flex:1;min-height:0;padding:28px 44px 20px;display:flex;flex-direction:column;gap:22px}
+.t-blueprint .cols{flex:1;min-height:0;display:grid;gap:24px;overflow:hidden;padding-top:18px;margin-top:-18px}
+.t-blueprint .card{backdrop-filter:blur(2px);position:relative;padding-top:40px}
+.t-blueprint .card::before{content:attr(data-k);position:absolute;top:-1px;left:30px;transform:translateY(-50%);background:var(--bg);padding:0 12px;font-family:ui-monospace,Menlo,monospace;font-size:20px;letter-spacing:.16em;color:var(--acc)}
+.t-blueprint .card-h h3{font-size:34px}
+.t-blueprint .btn{font-weight:600;letter-spacing:.02em}
+.t-blueprint .dz,.t-blueprint .hz{background-image:repeating-linear-gradient(-45deg,rgba(255,194,74,.10) 0 18px,transparent 18px 36px)}
+.t-blueprint .taskbar{border-radius:8px;height:84px;background:rgba(7,19,30,.85)}
+.stepper{display:flex;align-items:stretch;gap:0;flex:none}
+.step{flex:1;display:flex;align-items:center;gap:16px;padding:0 22px;height:112px;border:1px solid var(--line);margin-left:-1px;background:var(--surf);position:relative;min-width:0}
+.step:first-child{border-radius:10px 0 0 10px;margin-left:0}.step:last-child{border-radius:0 10px 10px 0}
+.step .n{width:56px;height:56px;border-radius:50%;border:3px solid var(--mut);display:flex;align-items:center;justify-content:center;font-family:ui-monospace,Menlo,monospace;font-size:26px;font-weight:700;color:var(--mut);flex:none}
+.step .n svg{font-size:30px}
+.step b{font-size:28px;display:block}.step small{font-size:21px;color:var(--mut);display:block;white-space:nowrap}
+.step.done .n{border-color:var(--ok);color:var(--ok);background:color-mix(in srgb,var(--ok) 12%,transparent)}
+.step.cur{border-color:var(--acc);background:color-mix(in srgb,var(--acc) 14%,var(--surf2));z-index:1;box-shadow:0 0 0 2px color-mix(in srgb,var(--acc) 30%,transparent)}
+.step.cur .n{border-color:var(--acc);color:var(--acc-ink);background:var(--acc)}
+.step.lock{opacity:.6;border-style:dashed}
+</style>
+</head>
+<body>
+<script>
+const q=new URLSearchParams(location.search);
+const T=q.get('t')||'cockpit', P=q.get('p')||'audio';
+
+/* ---------- icons ---------- */
+const I={
+ audio:'<svg viewBox="0 0 48 48"><path d="M8 19h7l9-7v24l-9-7H8z"/><path d="M31 18c3 3 3 9 0 12M36 13c6 6 6 16 0 22"/></svg>',
+ board:'<svg viewBox="0 0 48 48"><rect x="12" y="12" width="24" height="24" rx="3"/><path d="M20 20h8v8h-8zM18 5v7M24 5v7M30 5v7M18 36v7M24 36v7M30 36v7M5 18h7M5 24h7M5 30h7M36 18h7M36 24h7M36 30h7"/></svg>',
+ link:'<svg viewBox="0 0 48 48"><path d="M20 28a6 6 0 0 0 8.5 0l6-6a6 6 0 0 0-8.5-8.5l-2 2M28 20a6 6 0 0 0-8.5 0l-6 6a6 6 0 0 0 8.5 8.5l2-2"/></svg>',
+ lock:'<svg viewBox="0 0 48 48"><rect x="11" y="21" width="26" height="19" rx="3"/><path d="M17 21v-5a7 7 0 0 1 14 0v5"/></svg>',
+ car:'<svg viewBox="0 0 48 48"><path d="M8 30l3-10c.6-2 2-3 4-3h18c2 0 3.400 1 4 3l3 10v8h-5v-3H13v3H8z"/><circle cx="15" cy="28" r="1.500"/><circle cx="33" cy="28" r="1.500"/></svg>',
+ save:'<svg viewBox="0 0 48 48"><path d="M12 8h24v32l-12-8-12 8z"/></svg>',
+ flask:'<svg viewBox="0 0 48 48"><path d="M19 7h10M21 7v13L10 38a3 3 0 0 0 3 4h22a3 3 0 0 0 3-4L27 20V7"/></svg>',
+ disk:'<svg viewBox="0 0 48 48"><rect x="6" y="12" width="36" height="24" rx="5"/><circle cx="34" cy="24" r="2.500"/><path d="M12 24h12"/></svg>',
+ log:'<svg viewBox="0 0 48 48"><path d="M14 10h20v32H14zM20 5h8v8h-8zM19 24h10M19 31h10"/></svg>',
+ check:'<svg viewBox="0 0 48 48"><path d="M10 25l9 9 19-20"/></svg>',
+ key:'<svg viewBox="0 0 48 48"><circle cx="17" cy="28" r="8"/><path d="M23 22l16-16M32 13l5 5M27 18l4 4"/></svg>',
+ warn:'<svg viewBox="0 0 48 48"><path d="M24 6L4 41h40zM24 19v10M24 34v1"/></svg>',
+ export:'<svg viewBox="0 0 48 48"><path d="M24 30V6M14 16l10-10 10 10M8 30v10h32V30"/></svg>',
+ gear:'<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="6"/><path d="M24 4v6M24 38v6M4 24h6M38 24h6M10 10l4 4M34 34l4 4M10 38l4-4M34 14l4-4"/></svg>',
+ pulse:'<svg viewBox="0 0 48 48"><path d="M4 26h10l5-14 8 26 5-12h12"/></svg>'
+};
+const chip=(t,k='',ic='')=>`<span class="chip ${k}">${ic?I[ic]:''}${t}</span>`;
+const btn=(t,c='',ic='')=>`<button class="btn ${c}">${ic?`<i>${I[ic]}</i>`:''}${t}</button>`;
+const field=(l,v,o={})=>`<div class="field ${o.cls||''}"><label>${l}</label><div class="inp ${v?'':'ph'} ${o.mono?'mono':''}">${v||o.ph||''}${o.unit?`<span class="unit">${o.unit}</span>`:''}</div></div>`;
+const sw=(l,on,h='',_x='',extra='')=>`<div class="sw"><div class="grow"><div class="sw-l">${l}</div>${h?`<div class="sub">${h}</div>`:''}</div>${extra}<div class="tog ${on?'on':''}"><b></b></div></div>`;
+const card=(t,body,o={})=>`<section class="card ${o.cls||''}" ${o.k?`data-k="${o.k}"`:''}><div class="card-h">${o.no?`<span class="no">${o.no}</span>`:''}<h3>${t}</h3>${o.chip||''}</div>${body}</section>`;
+const imgItem=(nm,cat,ck,slot,size,ok,sel,prot)=>`<div class="img ${sel?'sel':''}"><div class="rd"></div><div class="grow"><div class="nm">${nm}</div><div class="meta">${chip(cat,ck)}<span>${slot}</span><span>·</span><span>${size}</span><span>·</span><span style="color:${ok?'var(--ok)':'var(--warn)'}">${ok?'已校验':'待校验'}</span></div></div>${prot?chip('受保护','warn','lock'):''}</div>`;
+
+/* ---------- 内容块（各候选共用，文案取自现有应用） ---------- */
+const B={};
+B.conn=(o={})=>card('音效控制入口',`
+  <div class="sub">通过 CP SSH 临时覆盖资源，不刷写固件。默认不修改任何声音。</div>
+  <div class="row"><span class="mono" style="font-size:32px;font-weight:600">198.18.44.2 : 22</span>${chip('root')}</div>
+  ${field('SSH 密码（留空即空密码；不保存）','',{ph:'留空 = 空密码'})}
+  <div class="row wrap">${btn('检测并确认 SSH 主机指纹','','key')}${btn('连接并读取运行状态','primary','link')}</div>`,
+  {chip:chip('指纹未确认','warn'),no:o.no,k:o.k});
+B.avas=(o={})=>card('AVAS · 行人提示音',`
+  <div class="callout"><b>现场验收：</b>实际声音和音量必须现场验收；配置检查不能替代声学及适用地区要求。</div>
+  ${sw('使用自定义音频（最长 30 秒）',false,'尚未选择音频')}
+  <div class="row wrap">${btn('选择 AVAS 音频','','audio')}${btn('在本机试听所选音频')}</div>
+  ${sw('使用自定义音量 / 速度曲线',false,'','',btn('读取当前固件的原曲线','sm'))}
+  <div class="grid3" style="gap:18px">${field('正向速度点 · 0/5/10/15/20/25/30 km/h','',{ph:'7 个数值，逗号分隔'})}${field('倒车曲线 · 7 个数值','',{ph:'7 个数值，逗号分隔'})}${field('曲线总音量（50–200%）','100',{mono:1,unit:'%'})}</div>
+  <div class="row wrap">${btn('恢复默认资源并开启服务')}<span class="grow"></span>${btn('应用 AVAS 设置','primary big','check')}</div>`,
+  {no:o.no,k:o.k});
+B.lock=(o={})=>card('锁车提示音',`
+  <div class="row wrap">${btn('选择锁车音频','','lock')}${btn('在本机试听锁车音频')}</div>
+  ${field('播放音量（25–200%，带峰值限制）','100',{mono:1,unit:'%'})}
+  <div class="row wrap">${btn('恢复默认锁车提示音')}<span class="grow"></span>${btn('应用锁车提示音','primary big','check')}</div>`,
+  {no:o.no,k:o.k,chip:chip('未选择音频')});
+B.saved=(o={})=>card('已保存设置',`
+  ${sw('开机尝试恢复已保存的 AVAS / 锁车音效',false,'默认关闭 · 需独立确认 P 挡且零车速')}
+  <div class="row">${btn('手动重新应用已保存音效')}</div>`,{no:o.no,k:o.k});
+B.test=(o={})=>`<section class="card hz" style="border-color:var(--warn-line);background-color:var(--warn-bg)" ${o.k?`data-k="${o.k}"`:''}><div class="card-h">${o.no?`<span class="no">${o.no}</span>`:''}<h3 style="color:var(--warn)">驻车测试 · 谨慎操作</h3>${chip('仅限 P 挡','warn','warn')}</div>
+  <div class="sub" style="color:var(--ink);opacity:.82">AVAS 与车辆提示音承担安全提醒作用。以下静音操作只用于驻车测试，不保存为开机设置，离开测试前必须恢复。</div>
+  <div class="row wrap">${btn('临时停止 AVAS','warn')}${btn('开启 AVAS 服务')}${btn('临时静音启用 / 退出提示（含巡航）','warn')}${btn('恢复巡航提示音')}</div></section>`;
+
+B.device=(o={})=>card('设备与分区',`
+  <div class="slot"><span class="big mono">cp:b</span><div><div class="mono" style="font-size:26px;font-weight:600">cp_rootfs_b → /dev/block/sdd4</div><div class="sub">1 GiB · UID 0 · 已识别当前 CP 槽位</div></div></div>
+  <div class="sub">镜像库：当前 Android 用户的 Documents/EVDashboard。卸载应用不会主动删除此目录；请另存重要备份到独立介质。</div>
+  <div class="${o.stack?'col':'grid2'}" style="gap:16px">${btn('授权文件管理权限','','gear')}${btn('检查权限并识别当前 CP 槽位','','board')}${btn('导出当前分区（完整备份）','primary','export')}${btn('导入本机 / U 盘镜像','','disk')}</div>`,
+  {chip:chip('已识别','ok','check'),no:o.no,k:o.k});
+B.lib=(o={})=>card('镜像存储列表',`
+  <div class="sub">原始、历史修改及导入镜像共用一个列表。选中不等于允许写入。</div>
+  <div class="col" style="gap:12px">
+   ${imgItem('导出 · 10-15 00:05','已修改','acc','cp:b','1024 MiB',true,!o.cand)}
+   ${imgItem('SSH 候选 · 58d0368d','已修改','acc','cp:b','1024 MiB',!o.cand,!!o.cand)}
+   ${imgItem('导出 · 10-14 22:51','原始','ok','cp:b','1024 MiB',true,false,true)}
+  </div>`,{no:o.no,k:o.k,chip:btn('刷新','sm')});
+B.sel=(o={})=>{const ok=!o.cand;
+  const info=`<dl class="kv"><dt>名称</dt><dd>${o.cand?'SSH 候选 · 58d0368d':'导出 · 10-15 00:05'}</dd><dt>SSH 配置</dt><dd>${o.cand?'待生成后复核':'已启用 · 22 端口'} / root：${o.cand?'—':'空密码'}</dd><dt>固件基线</dt><dd class="mono">e3b0c44298fc</dd><dt>SHA-256</dt><dd class="mono">${o.cand?'a41c9d07…7e20b3':'f1e80679…e9141b'}</dd></dl>`;
+  const toggles=`${sw('开启 SSH 开机监听（22 端口）',false)}${sw('清除 root 密码，允许空密码登录',false)}`;
+  const note=`<div class="callout"><b>注意：</b>空密码会让能够访问此 SSH 入口的一方获得 root 权限。锁定账号或未知认证配置不会被静默改写。</div>`;
+  const actions=`${btn('修改并生成新镜像','primary','flask')}${btn('重新读取并校验所选镜像','','check')}${btn('确认镜像分类（仅待分类导出）')}${btn('另存所选镜像到文件 / U 盘','','export')}`;
+  const dz=`<div class="dz"><div class="dz-h">${I.warn.replace('<svg','<svg style="font-size:30px"')}写入与删除<span>${ok?'需完成四项风险确认':'需先通过镜像校验'}</span></div>
+   <div class="row wrap">${btn('删除所选镜像','danger')}<span class="grow"></span>${btn('将所选镜像写入当前 CP 槽位','danger big'+(ok?'':' locked'),ok?'warn':'lock')}</div></div>`;
+  const body=o.wide
+   ?`<div class="grid2" style="gap:40px;align-items:start"><div class="col" style="gap:14px">${info}${toggles}${note}</div><div class="col" style="gap:14px">${actions}${dz.replace('row wrap','col')}</div></div>`
+   :`${info}<div class="col" style="gap:0">${toggles}</div>${note}<div class="col" style="gap:14px">${actions}</div>${dz}`;
+  return card('当前选中镜像',body,{no:o.no,k:o.k,chip:ok?chip('结构已校验','ok','check'):chip('待重新校验','warn')});};
+B.audit=(o={})=>card('任务与恢复',`
+  <div class="sub">生成检查、写后回读、启动验收是三个不同阶段。写入不自动重启，也不自动切槽。保留 A/B 不等于保证自动回退。</div>
+  <div class="row wrap">${btn('检查未完成刷写任务（不会重新写入）','','log')}${btn('导出本次诊断记录')}${btn('版本、数据说明与开源许可')}</div>`,{no:o.no,k:o.k});
+const taskbar=(msg='所有镜像处理均在本机完成。未识别设备前不会读取或写入分区。')=>`<div class="taskbar"><span class="dot"></span><span class="st">就绪</span><span class="msg">${msg}</span><div class="bar"></div></div>`;
+
+/* ---------- 布局 ---------- */
+const L={};
+
+L.cockpit=()=>{
+ const nav=(i,t,on)=>`<div class="nav-i ${on?'on':''}"><i>${I[i]}</i>${t}</div>`;
+ const rail=`<aside class="rail"><div class="brand"><i>${I.pulse}</i>仪表工坊</div>
+   ${nav('audio','AVAS 与提示音',P==='audio')}${nav('board','仪表盘工坊',P==='workshop')}
+   <div class="dev"><div class="k mono">CP · 当前槽位</div><div class="v mono">${P==='workshop'?'cp:b':'—'}</div><div class="sub" style="font-size:22px">${P==='workshop'?'/dev/block/sdd4 · 1 GiB':'未识别 · 仅音效可用'}</div></div>
+   <div class="sub" style="font-size:21px;padding:8px 6px 0">v0.1.0 · 本地维护 · 不上传车辆镜像</div></aside>`;
+ let head,body;
+ if(P==='audio'){
+  head=`<div class="page-h"><h1>AVAS 与提示音</h1><div class="sub" style="padding-bottom:6px">临时覆盖，不刷写固件</div><div class="chips">${chip('SSH 指纹未确认','warn')}${chip('198.18.44.2','')}</div></div>`;
+  body=`<div class="body" style="grid-template-columns:940px 1fr"><div class="col">${B.conn()}${B.lock()}</div><div class="col">${B.avas()}${B.saved()}</div></div>`;
+ }else{
+  head=`<div class="page-h"><h1>仪表盘工坊</h1><div class="sub" style="padding-bottom:6px">识别 → 导出 → 生成 → 校验 → 写入 → 回读</div><div class="chips">${chip('已识别 cp:b','ok','check')}${chip('镜像库 3','')}</div></div>`;
+  body=`<div class="body" style="grid-template-columns:760px 1fr"><div class="col">${B.device({stack:1})}${B.audit()}</div><div class="col">${B.lib()}${B.sel({wide:1})}</div></div>`;
+ }
+ return rail+`<main class="main">${head}${body}${taskbar()}</main>`;
+};
+
+L.paper=()=>{
+ const top=`<header class="top"><h1><i>${I.pulse}</i>仪表工坊</h1><div class="seg"><div class="${P==='audio'?'on':''}">AVAS 与提示音</div><div class="${P==='workshop'?'on':''}">仪表盘工坊</div></div><div class="chips">${P==='workshop'?chip('已识别 cp:b','ok','check'):chip('SSH 指纹未确认','warn')}${chip('本地维护 · 不上传')}</div></header>`;
+ let body;
+ if(P==='audio') body=`<div class="cols" style="grid-template-columns:.9fr 1.55fr .9fr"><div class="col">${B.conn({no:'01'})}${B.saved({no:'04'})}</div><div class="col">${B.avas({no:'02'})}</div><div class="col">${B.lock({no:'03'})}${B.test({no:'05'})}</div></div>`;
+ else body=`<div class="cols" style="grid-template-columns:1fr 1fr 1.1fr"><div class="col">${B.device({no:'01',stack:1})}</div><div class="col">${B.lib({no:'02'})}${B.audit({no:'04'})}</div><div class="col">${B.sel({no:'03',stack:1})}</div></div>`;
+ return `<div style="display:flex;flex-direction:column;width:100%">${top}<div class="content">${body}${taskbar()}</div></div>`;
+};
+
+L.native=()=>{
+ const sec=(ic,col,t,s,on)=>`<div class="sec ${on?'on':''}"><div class="ib" style="background:${col}">${I[ic]}</div><div class="grow">${t}<small>${s}</small></div><span class="cv">›</span></div>`;
+ let master,detail;
+ const seg=`<div class="seg"><div class="${P==='audio'?'on':''}">AVAS 与提示音</div><div class="${P==='workshop'?'on':''}">仪表盘工坊</div></div>`;
+ if(P==='audio'){
+  master=`<aside class="master"><h1>仪表工坊</h1>${seg}${sec('link','#2D6BFF','连接 CP','198.18.44.2 · 指纹未确认',false)}${sec('audio','#16A07A','AVAS · 行人提示音','默认资源',true)}${sec('lock','#7A5AF8','锁车提示音','默认资源',false)}${sec('save','#F28C28','已保存设置','开机恢复：关闭',false)}${sec('flask','#E5483C','驻车测试','谨慎操作',false)}</aside>`;
+  detail=`<div class="detail"><div class="pane"><h2><span style="color:#16A07A;display:flex">${I.audio}</span>AVAS · 行人提示音</h2>
+   <div class="callout"><b>现场验收：</b>实际声音和音量必须现场验收；配置检查不能替代声学及适用地区要求。</div>
+   <div class="gcap">音频</div><div class="group">${sw('使用自定义音频（最长 30 秒）',false,'尚未选择音频')}<div class="grow-r act">选择 AVAS 音频</div><div class="grow-r act">在本机试听所选音频</div></div>
+   <div class="gcap">曲线</div><div class="group">${sw('使用自定义音量 / 速度曲线',false)}<div class="grid3" style="gap:0">${field('正向速度点 · 0–30 km/h','',{ph:'7 个数值'})}${field('倒车曲线','',{ph:'7 个数值'})}${field('总音量（50–200%）','100',{mono:1,unit:'%'})}</div><div class="grow-r act">读取当前固件的原曲线</div></div>
+   <div class="pfoot">${btn('恢复默认并开启服务','','')}<span class="grow"></span>${btn('应用 AVAS 设置','primary big','check')}</div></div>${taskbar()}</div>`;
+ }else{
+  master=`<aside class="master"><h1>仪表工坊</h1>${seg}${sec('board','#2D6BFF','设备与分区','cp:b · /dev/block/sdd4',false)}${sec('disk','#16A07A','镜像库','3 份镜像 · 已选中 1',true)}${sec('warn','#E5483C','写入与删除','需四项风险确认',false)}${sec('log','#7A5AF8','任务与恢复','无未完成任务',false)}</aside>`;
+  detail=`<div class="detail"><div class="pane"><h2><span style="color:#16A07A;display:flex">${I.disk}</span>镜像库<span class="chip ok" style="margin-left:auto">${I.check}已选 · 结构已校验</span></h2>
+   <div class="group" style="flex:none">${imgItem('导出 · 10-15 00:05','已修改','acc','cp:b','1024 MiB',true,true)}${imgItem('SSH 候选 · 58d0368d','已修改','acc','cp:b','1024 MiB',true,false)}${imgItem('导出 · 10-14 22:51','原始','ok','cp:b','1024 MiB',true,false,true)}</div>
+   <div class="gcap">所选镜像 · SHA-256 f1e80679…e9141b</div><div class="group" style="flex:none">${sw('开启 SSH 开机监听（22 端口）',false)}${sw('清除 root 密码，允许空密码登录',false)}<div class="grow-r act">修改并生成新镜像</div><div class="grow-r act">重新读取并校验所选镜像</div><div class="grow-r act">确认镜像分类（仅待分类导出）</div><div class="grow-r act">另存所选镜像到文件 / U 盘</div></div></div>${taskbar()}</div>`;
+ }
+ return master+detail;
+};
+
+L.blueprint=()=>{
+ const top=`<header class="top"><div><div class="kicker">Instrument Workshop · v0.1.0</div><h1>仪表工坊</h1></div><div class="tabs"><div class="${P==='audio'?'on':''}">AVAS 与提示音</div><div class="${P==='workshop'?'on':''}">仪表盘工坊</div></div><div class="chips">${P==='workshop'?chip('CP:B · SDD4 · 1 GiB','acc','board'):chip('SSH 指纹未确认','warn')}${chip('本地维护 · 不上传')}</div></header>`;
+ let body;
+ if(P==='audio'){
+  body=`<div class="cols" style="grid-template-columns:.9fr 1.55fr .9fr"><div class="col">${B.conn({k:'01 · LINK'})}${B.saved({k:'04 · PERSIST'})}</div><div class="col">${B.avas({k:'02 · AVAS'})}</div><div class="col">${B.lock({k:'03 · LOCK TONE'})}${B.test({k:'05 · HAZARD'})}</div></div>`;
+ }else{
+  const st=(cls,n,t,s)=>`<div class="step ${cls}"><div class="n">${cls==='done'?I.check:cls==='lock'?I.lock:n}</div><div><b>${t}</b><small>${s}</small></div></div>`;
+  const stepper=`<div class="stepper">${st('done',1,'识别槽位','cp:b')}${st('done',2,'导出备份','10-15 00:05')}${st('done',3,'确认分类','已修改')}${st('done',4,'生成候选','58d0368d')}${st('cur',5,'重新校验','进行中')}${st('lock',6,'写入分区','校验后解锁')}${st('lock',7,'全量回读','写入后')}</div>`;
+  body=`${stepper}<div class="cols" style="grid-template-columns:.95fr 1fr 1.05fr"><div class="col">${B.device({k:'A · DEVICE',stack:1})}</div><div class="col">${B.lib({k:'B · IMAGES',cand:1})}${B.audit({k:'D · RECOVERY'})}</div><div class="col">${B.sel({k:'C · SELECTED',cand:1,stack:1})}</div></div>`;
+ }
+ return `<div style="display:flex;flex-direction:column;width:100%">${top}<div class="content">${body}${taskbar()}</div></div>`;
+};
+
+/* ---------- 组装 ---------- */
+document.body.innerHTML=`<div class="screen t-${T}">
+ <div class="sysbar"><span class="ph">系统状态栏（示意 · 应用仅可设置底色与图标明暗）</span><span>16:56</span></div>
+ <div class="app">${L[T]()}</div>
+ <div class="dock"><div class="o"></div><span>回到桌面</span><span class="ph">系统 Dock（示意 · 始终为深色）</span></div>
+</div>`;
+</script>
+</body>
+</html>

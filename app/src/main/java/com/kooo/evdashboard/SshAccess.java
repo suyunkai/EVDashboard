@@ -9,16 +9,19 @@ import java.util.*;
 import java.security.MessageDigest;
 
 final class SshAccess implements AutoCloseable {
-    static final String HOST="198.18.44.2";private final Context context;private Session session;
+    private final Context context;private Session session;
     SshAccess(Context c){context=c;}
-    static final class KeyOffer {final String type,key,fingerprint;KeyOffer(HostKey h)throws Exception{type=h.getType();key=h.getKey();fingerprint="SHA256:"+Base64.getEncoder().withoutPadding().encodeToString(MessageDigest.getInstance("SHA-256").digest(Base64.getDecoder().decode(key)));}}
+    static String host(Context c){return c.getSharedPreferences("settings",0).getString("cpHost",com.kooo.evdashboard.core.CpAddress.DEFAULT);}
+    static boolean trusted(Context c){String known=c.getSharedPreferences("settings",0).getString("sshKnown","");return known.startsWith(host(c)+" ");}
+    static final class KeyOffer {final String host,type,key,fingerprint;KeyOffer(String host,HostKey h)throws Exception{this.host=host;type=h.getType();key=h.getKey();fingerprint="SHA256:"+Base64.getEncoder().withoutPadding().encodeToString(MessageDigest.getInstance("SHA-256").digest(Base64.getDecoder().decode(key)));}}
     static KeyOffer inspectKey(Context context)throws Exception{
+        String host=com.kooo.evdashboard.core.CpAddress.parse(host(context));
         JSch ssh=new JSch();final HostKey[] observed={null};ssh.setHostKeyRepository(new HostKeyRepository(){public int check(String host,byte[] key){try{observed[0]=new HostKey(host,key);}catch(Exception ignored){}return NOT_INCLUDED;}public void add(HostKey h,UserInfo u){}public void remove(String h,String t){}public void remove(String h,String t,byte[] k){}public String getKnownHostsRepositoryID(){return "key-preview";}public HostKey[] getHostKey(){return new HostKey[0];}public HostKey[] getHostKey(String h,String t){return new HostKey[0];}});
-        Session session=ssh.getSession("root",HOST,22);session.setConfig("StrictHostKeyChecking","yes");session.setTimeout(6000);
-        try{session.connect(6000);}catch(JSchException e){if(observed[0]==null)throw e;}finally{session.disconnect();}FilesEx.require(observed[0]!=null,"未取得主机公钥");return new KeyOffer(observed[0]);
+        Session session=ssh.getSession("root",host,22);session.setConfig("StrictHostKeyChecking","yes");session.setTimeout(6000);
+        try{session.connect(6000);}catch(JSchException e){if(observed[0]==null)throw e;}finally{session.disconnect();}FilesEx.require(observed[0]!=null,"未取得主机公钥");return new KeyOffer(host,observed[0]);
     }
     void connect(String password)throws Exception{
-        String known=context.getSharedPreferences("settings",0).getString("sshKnown","");FilesEx.require(!known.isEmpty(),"请先检测并确认 CP 的 SSH 主机指纹");JSch ssh=new JSch();ssh.setKnownHosts(new ByteArrayInputStream((known+"\n").getBytes(StandardCharsets.UTF_8)));session=ssh.getSession("root",HOST,22);session.setConfig("StrictHostKeyChecking","yes");session.setConfig("PreferredAuthentications","password,keyboard-interactive,none");session.setPassword(password==null?"":password);session.setTimeout(8000);session.setServerAliveInterval(5000);session.setServerAliveCountMax(2);session.connect(6000);
+        String host=com.kooo.evdashboard.core.CpAddress.parse(host(context));String known=context.getSharedPreferences("settings",0).getString("sshKnown","");FilesEx.require(known.startsWith(host+" "),"请先检测并确认当前 CP 地址的 SSH 主机指纹");JSch ssh=new JSch();ssh.setKnownHosts(new ByteArrayInputStream((known+"\n").getBytes(StandardCharsets.UTF_8)));session=ssh.getSession("root",host,22);session.setConfig("StrictHostKeyChecking","yes");session.setConfig("PreferredAuthentications","password,keyboard-interactive,none");session.setPassword(password==null?"":password);session.setTimeout(8000);session.setServerAliveInterval(5000);session.setServerAliveCountMax(2);session.connect(6000);
         FilesEx.require(text("id -u",10).trim().equals("0"),"CP 登录用户不是 root");
     }
     byte[] command(String command,byte[] input,int seconds)throws Exception{

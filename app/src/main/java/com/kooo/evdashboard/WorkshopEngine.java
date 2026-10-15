@@ -9,11 +9,17 @@ import java.util.function.Consumer;
 
 public final class WorkshopEngine {
     final ImageLibrary library;final RootAccess root;final Context context;final Consumer<String> progress;
+    final TaskProgress meter;
     DeviceInfo device;
-    public WorkshopEngine(Context c,ImageLibrary lib,Consumer<String> log){context=c;library=lib;root=new RootAccess(c);progress=log;}
+    public WorkshopEngine(Context c,ImageLibrary lib,Consumer<String> log){this(c,lib,log,new TaskProgress());}
+    public WorkshopEngine(Context c,ImageLibrary lib,Consumer<String> log,TaskProgress meter){context=c;library=lib;root=new RootAccess(c);progress=log;this.meter=meter;}
     String tool(String name){return new File(context.getApplicationInfo().nativeLibraryDir,"lib"+name+".so").getAbsolutePath();}
-    String execute(String name,String...args)throws Exception {return RootAccess.nativeRun(tool(name),600,args);}
-    DeviceInfo identify()throws Exception{progress.accept("检查独立 root 权限与 CP 槽位…");String method=root.connect();device=DeviceInfo.detect(root);progress.accept(method+"\n"+device.summary());return device;}
+    String execute(String name,String...args)throws Exception {
+        String label=switch(name){case "fsck_erofs" -> "检查 EROFS 文件系统完整性";case "mkfs_erofs" -> "重建 EROFS 文件系统";case "fip_pack" -> "封装完整分区镜像";case "fip_verify" -> "独立核对容器与保留数据";default -> args.length>0&&args[0].equals("export")?"提取文件树并应用选中修改":args.length>0&&args[0].equals("verify")?"逐文件校验内容与元数据":"读取镜像中的 SSH / 账号配置";};
+        meter.stage(label,0);return RootAccess.nativeRun(tool(name),600,args);
+    }
+    private String digest(File file,String label)throws Exception{meter.stage(label,file.length());return FilesEx.digest(file,meter::advance);}
+    DeviceInfo identify()throws Exception{meter.stage("检查 root 权限与当前 CP 槽位",0);progress.accept("检查独立 root 权限与 CP 槽位…");String method=root.connect();device=DeviceInfo.detect(root);progress.accept(method+"\n"+device.summary());return device;}
     private static String q(String s){return FilesEx.quote(s);}
     private File receipt(String name){return new File(context.getFilesDir(),name);}
     private void space(long need)throws Exception{FilesEx.require(library.root.getUsableSpace()>need,"可用空间不足，需要至少 "+(need/(1024*1024))+" MiB");}
@@ -27,29 +33,29 @@ public final class WorkshopEngine {
             String before=partitionHash(d);d.same(DeviceInfo.detect(root));
             // The app owns all destination writes, avoiding stale FUSE attributes after
             // a root process writes through /data/media behind the app's mount namespace.
-            root.copyReadOnly(d.block,image,d.bytes);
-            FilesEx.require(image.length()==d.bytes,"导出长度不完整");r.sha=FilesEx.digest(image);r.bytes=image.length();
+            meter.stage("完整复制当前 CP 分区到备份文件",d.bytes);root.copyReadOnly(d.block,image,d.bytes,meter::advance);
+            FilesEx.require(image.length()==d.bytes,"导出长度不完整");r.sha=digest(image,"回读导出文件并计算摘要");r.bytes=image.length();
             FilesEx.require(before.equals(r.sha)&&before.equals(partitionHash(d)),"导出期间源分区发生变化或复制不完整");d.same(DeviceInfo.detect(root));
             inspect(r);r.message="导出、全量摘要与结构校验通过；请选择镜像类型";library.save(r);return r;
         }catch(Exception e){r.message="导出/检测失败，文件保留待检查："+e.getMessage();r.bytes=image.length();r.validated=false;library.save(r);throw e;}
     }
-    String partitionHash(DeviceInfo d)throws Exception{progress.accept("读取目标分区摘要（只读）…");String s=root.run("sha256sum "+q(d.block),180).trim().split("\\s+")[0];FilesEx.require(s.matches("[a-f0-9]{64}"),"分区摘要无效");return s;}
+    String partitionHash(DeviceInfo d)throws Exception{meter.stage("只读计算当前分区完整摘要",0);progress.accept("读取目标分区摘要（只读）…");String s=root.run("sha256sum "+q(d.block),180).trim().split("\\s+")[0];FilesEx.require(s.matches("[a-f0-9]{64}"),"分区摘要无效");return s;}
     public void inspect(ImageRecord r)throws Exception {
         File f=library.file(r);progress.accept("检测容器与 EROFS，并读取 SSH/账号配置…");r.validated=false;
         try {FipImage.read(f);execute("fsck_erofs","--offset=4096","--extract",f.toString());
             JSONObject j=new JSONObject(execute("image_tool","inspect",f.toString(),"4096"));
             r.socket=j.getString("socket");r.password=j.getString("rootPassword");r.blankAllowed=j.getBoolean("blankAllowed");r.build=FilesEx.hashText(j.getString("build"));
-            if(!r.sha.isEmpty())FilesEx.require(FilesEx.digest(f).equals(r.sha),"文件摘要与记录不符；不自动接受已被改动的镜像");else r.sha=FilesEx.digest(f);
+            String actual=digest(f,"完整回读镜像并核对 SHA-256");if(!r.sha.isEmpty())FilesEx.require(actual.equals(r.sha),"文件摘要与记录不符；不自动接受已被改动的镜像");else r.sha=actual;
             r.bytes=f.length();r.validated=true;r.message="结构检查通过；镜像配置不等于实时 SSH 状态";
         }catch(Exception e){r.message="未通过检查："+e.getMessage();throw e;}finally{library.save(r);}
     }
     ImageRecord importImage(InputStream in,String name)throws Exception{
         space(FipImage.PARTITION_BYTES+128*1024*1024L);ImageRecord r=library.create("IMPORT",name);File f=library.file(r);
-        try {FilesEx.copy(in,f,FipImage.PARTITION_BYTES);r.bytes=f.length();r.sha=FilesEx.digest(f);library.save(r);inspect(r);return r;}
+        try {meter.stage("复制外部镜像到独立镜像库文件",FipImage.PARTITION_BYTES);FilesEx.copy(in,f,FipImage.PARTITION_BYTES,meter::advance);r.bytes=f.length();r.sha=digest(f,"回读导入镜像并计算摘要");library.save(r);inspect(r);return r;}
         catch(Exception e){r.bytes=f.length();r.validated=false;r.message="导入/检查失败："+e.getMessage();library.save(r);throw e;}
     }
     public ImageRecord generate(ImageRecord source,boolean ssh,boolean blank)throws Exception{
-        FilesEx.require(ssh||blank,"请至少选择一项修改");FilesEx.require(library.intact(source),"源镜像损坏或已变化");inspect(source);space(4L*FipImage.PARTITION_BYTES);
+        FilesEx.require(ssh||blank,"请至少选择一项修改");meter.stage("核对来源镜像是否完整",0);FilesEx.require(library.intact(source),"源镜像损坏或已变化");inspect(source);space(4L*FipImage.PARTITION_BYTES);
         String originalSha=source.sha;FipImage header=FipImage.read(library.file(source));File job=new File(library.work,UUID.randomUUID().toString());FilesEx.require(job.mkdir(),"创建生成目录失败");
         File tar=new File(job,"filesystem.tar"),erofs=new File(job,"filesystem.erofs");ImageRecord result=library.create("GENERATED",source.name+" · SSH 修改");result.category="MODIFIED";result.sourceId=source.id;result.sourceSha=originalSha;result.enableSsh=ssh;result.clearPassword=blank;result.device=source.device;result.slot=source.slot;result.build=source.build;library.save(result);
         try {
@@ -59,14 +65,14 @@ public final class WorkshopEngine {
             execute("image_tool","verify",library.file(source).toString(),"4096",ssh?"1":"0",blank?"1":"0",erofs.toString(),"0");
             execute("fip_pack",library.file(source).toString(),erofs.toString(),library.file(result).toString());execute("fip_verify",library.file(source).toString(),erofs.toString(),library.file(result).toString());
             execute("image_tool","verify",library.file(source).toString(),"4096",ssh?"1":"0",blank?"1":"0",library.file(result).toString(),"4096");
-            FilesEx.require(FilesEx.digest(library.file(source)).equals(originalSha),"源镜像发生变化");inspect(result);result.message="生成及独立复核通过；未写入分区";library.save(result);
+            FilesEx.require(digest(library.file(source),"确认原始来源未被修改").equals(originalSha),"源镜像发生变化");inspect(result);result.message="生成及独立复核通过；未写入分区";library.save(result);
             // Only disposable intermediates from this exact task; never remove source/candidate.
             java.nio.file.Files.deleteIfExists(tar.toPath());java.nio.file.Files.deleteIfExists(erofs.toPath());java.nio.file.Files.deleteIfExists(job.toPath());return result;
         }catch(Exception e){result.validated=false;result.message="生成未完成："+e.getMessage();library.save(result);throw e;}
     }
     public void verifyGenerated(ImageRecord r)throws Exception{
         try{
-            inspect(r);if(!r.origin.equals("GENERATED"))return;ImageRecord source=library.get(r.sourceId);FilesEx.require(source.sha.equals(r.sourceSha)&&library.intact(source),"来源镜像缺失或变化，不能复核差异");
+            inspect(r);if(!r.origin.equals("GENERATED"))return;meter.stage("复核生成镜像的来源与差异",0);ImageRecord source=library.get(r.sourceId);FilesEx.require(source.sha.equals(r.sourceSha)&&library.intact(source),"来源镜像缺失或变化，不能复核差异");
             FipImage.compatibleEnvelope(library.file(source),library.file(r));execute("image_tool","verify",library.file(source).toString(),"4096",r.enableSsh?"1":"0",r.clearPassword?"1":"0",library.file(r).toString(),"4096");r.message="重新读取候选，结构、来源及修改白名单校验通过";library.save(r);
         }catch(Exception e){r.validated=false;r.message="重新校验失败："+e.getMessage();library.save(r);throw e;}
     }
@@ -118,7 +124,7 @@ public final class WorkshopEngine {
         File script=new File(context.getFilesDir(),"writer-"+id+".sh");FilesEx.atomicText(script,WritePlan.build(d.slot,d.block,d.bootId,job,candidate.sha,live));String scriptSha=FilesEx.digest(script);
         String rootCandidate=root.sharedFile(library.file(candidate)),rootScript=root.sharedFile(script);
         JSONObject manifest=new JSONObject().put("device",d.device).put("slot",d.slot).put("block",d.block).put("boot",d.bootId).put("candidateId",candidate.id).put("writtenSha",candidate.sha).put("backupId",backupId).put("job",job).put("sameContentTest",sameContentTest).put("state","PREPARING");FilesEx.atomicText(new File(localJob,"job.json"),manifest.toString(2));FilesEx.atomicText(receipt("pending-write.json"),manifest.toString(2));
-        progress.accept("将候选复制到 root 专用任务目录并再次校验。随后开始单槽写入，请勿断电…");
+        meter.stage("准备 root 专用副本并校验写入前条件",0);progress.accept("将候选复制到 root 专用任务目录并再次校验。随后开始单槽写入，请勿断电…");
         String launch="set -e; umask 077; test ! -e /data/local/evdashboard/writer.lock; test \"$(df -k /data/local | tail -n 1 | awk '{print $4}')\" -gt 2359296; mkdir -p /data/local/evdashboard/jobs; mkdir "+q(job)+"; chmod 700 "+q(job)+"; cp "+q(rootScript)+" "+q(job+"/writer.sh")+"; cp "+q(rootCandidate)+" "+q(job+"/candidate.img")+"; test \"$(sha256sum "+q(job+"/writer.sh")+" | cut -d ' ' -f1)\" = "+q(scriptSha)+"; test \"$(sha256sum "+q(job+"/candidate.img")+" | cut -d ' ' -f1)\" = "+q(candidate.sha)+"; "+DetachedLaunch.writer(job);
         root.run(launch,300);pollWrite(manifest,localJob);
     }
@@ -129,7 +135,7 @@ public final class WorkshopEngine {
         String job=manifest.getString("job");String last="";
         for(int i=0;i<180;i++){
             String result=root.run("if [ -f "+q(job+"/result")+" ]; then cat "+q(job+"/result")+"; else echo RUNNING; fi; if [ -f "+q(job+"/stage")+" ]; then cat "+q(job+"/stage")+"; fi",12);
-            if(!result.equals(last)){progress.accept("刷写任务："+result);last=result;}
+            if(!result.equals(last)){String label=result.contains("FULL_READBACK")?"全量回读、字节比较及非目标分区核验":result.contains("WRITING")?"正在写入当前 CP 槽位，请勿断电":result.contains("PREFLIGHT")?"后台写入前最终核验":"等待后台任务结果（不自动重试）";meter.stage(label,0);progress.accept("刷写任务："+result);last=result;}
             if(result.startsWith("PASS")){
                 FilesEx.atomicText(new File(localJob,"writer.log"),root.run("cat "+q(job+"/writer.log"),15));manifest.put("state","WRITE_AND_READBACK_VERIFIED");FilesEx.atomicText(new File(localJob,"job.json"),manifest.toString(2));FilesEx.atomicText(receipt("last-write.json"),manifest.toString(2));java.nio.file.Files.deleteIfExists(receipt("pending-write.json").toPath());progress.accept("完整写入、全量回读及非目标分区核验通过。没有切槽或重启；请另行安排启动验收。");return;
             }

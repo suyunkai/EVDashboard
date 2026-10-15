@@ -22,10 +22,10 @@ import java.util.*;
 public final class MainActivity extends Activity {
     private static final String[][] TITLES = {
         {"连接 CP", "AVAS · 行人提示音", "锁车提示音", "已保存设置", "驻车测试"},
-        {"设备与分区", "镜像库", "写入与删除", "任务与恢复"}};
+        {"1 · 识别与备份", "2 · 选择与修改", "3 · 校验与写入", "任务与恢复"}};
     private static final String[][] SUBTITLES = {
         {"", "自定义音频与曲线", "自定义锁车声", "", "谨慎操作"},
-        {"", "", "需四项风险确认", "写后回读与恢复"}};
+        {"先识别，再导出备份", "选择镜像，再生成副本", "保留备份并全量回读", "写后回读与恢复"}};
     private static final int[][] ICONS = {
         {R.drawable.ic_ui_link, R.drawable.ic_ui_audio, R.drawable.ic_ui_lock, R.drawable.ic_ui_save, R.drawable.ic_ui_flask},
         {R.drawable.ic_ui_board, R.drawable.ic_ui_disk, R.drawable.ic_ui_warn, R.drawable.ic_ui_log}};
@@ -36,7 +36,7 @@ public final class MainActivity extends Activity {
 
     private AppState state;
     private Ui ui;
-    private int page;
+    private int page = 1; // Workshop is the first, default tab; audio retains its internal page ID.
     private final int[] section = new int[2];
     private final Map<String, String> drafts = new HashMap<>();
 
@@ -46,7 +46,7 @@ public final class MainActivity extends Activity {
     private final View[][] navItems = {new View[5], new View[4]};
     private final TextView[][] navSub = {new TextView[5], new TextView[4]};
     private final View[][] panes = {new View[5], new View[4]};
-    private TextView statusTitle, statusText;
+    private TextView statusTitle, statusText, progressText, permissionText, cpAddressText;
     private View statusDot;
     private ProgressBar progress;
 
@@ -59,6 +59,11 @@ public final class MainActivity extends Activity {
     private File avasAudio, lockAudio;
     private String saveImageId = "";
     private MediaPlayer player;
+    private LocalFilePicker filePicker;
+    private final Handler clock = new Handler(Looper.getMainLooper());
+    private final Runnable progressTick = new Runnable() {
+        @Override public void run() {updateStatus(); clock.postDelayed(this, 1000);}
+    };
 
     private final BroadcastReceiver updates = new BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) {updateStatus(); if (!state.busy.get()) refreshLibrary();}
@@ -77,13 +82,15 @@ public final class MainActivity extends Activity {
         render(getResources().getConfiguration());
     }
 
-    @Override protected void onResume() {super.onResume(); try {state.storage(); refreshLibrary();} catch (Exception ignored) {}}
-    @Override protected void onDestroy() {unregisterReceiver(updates); if (player != null) player.release(); super.onDestroy();}
+    @Override protected void onResume() {super.onResume(); clock.removeCallbacks(progressTick); clock.post(progressTick); updatePermissions(); try {state.storage(); refreshLibrary();} catch (Exception ignored) {}}
+    @Override protected void onPause() {clock.removeCallbacks(progressTick); super.onPause();}
+    @Override protected void onDestroy() {clock.removeCallbacks(progressTick); if (filePicker != null) filePicker.close(); unregisterReceiver(updates); if (player != null) player.release(); super.onDestroy();}
     @Override public void onConfigurationChanged(android.content.res.Configuration config) {super.onConfigurationChanged(config); render(config);}
 
     // ---------------------------------------------------------------- layout
 
     private void render(android.content.res.Configuration config) {
+        if (filePicker != null) {filePicker.close(); filePicker = null;}
         ui = new Ui(this, config);
         View root = ui.compact ? compactRoot() : wideRoot();
         root.setBackgroundColor(ui.bg);
@@ -92,6 +99,7 @@ public final class MainActivity extends Activity {
         restoreAudioLabels();
         select(page, section[page]);
         updateConnection();
+        updatePermissions();
         updateStatus();
         refreshLibrary();
     }
@@ -153,8 +161,8 @@ public final class MainActivity extends Activity {
         LinearLayout seg = ui.horizontal();
         seg.setBackground(ui.rect(ui.segment, 32, 0, 0));
         seg.setPadding(ui.px(8), ui.px(8), ui.px(8), ui.px(8));
-        for (int i = 0; i < 2; i++) {
-            final int p = i;
+        for (int display = 0; display < 2; display++) {
+            final int i = 1 - display, p = i;
             Button b = new Button(this);
             b.setText(PAGE_NAMES[i]);
             b.setAllCaps(false);
@@ -246,13 +254,15 @@ public final class MainActivity extends Activity {
     }
 
     private View taskBar() {
+        LinearLayout container = ui.vertical();
+        container.setBackground(ui.rect(ui.surface, 34, 0, 0));
         LinearLayout bar = ui.horizontal();
         bar.setMinimumHeight(ui.px(88));
         bar.setPadding(ui.px(32), ui.px(10), ui.px(32), ui.px(10));
         bar.setBackground(ui.interactive(ui.surface, 34, 0));
         bar.setClickable(true);
         bar.setFocusable(true);
-        bar.setOnClickListener(v -> new UiDialog(this, ui, state.title).message(state.status).positive("关闭", Ui.Look.TINT, null).show());
+        bar.setOnClickListener(v -> new UiDialog(this, ui, state.title).message(state.status + "\n\n" + state.progress.snapshot().summary() + "\n百分比与剩余时间仅对应当前步骤，不能代表整个任务已完成。重建、分区写入等无法计量的步骤不会显示虚假倒计时。").positive("关闭", Ui.Look.TINT, null).show());
         statusDot = new View(this);
         GradientDrawable dot = new GradientDrawable();
         dot.setShape(GradientDrawable.OVAL);
@@ -267,8 +277,12 @@ public final class MainActivity extends Activity {
         progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         progress.setIndeterminate(true);
         progress.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(ui.accent));
+        progress.setProgressTintList(android.content.res.ColorStateList.valueOf(ui.accent));
         bar.addView(progress, ui.lp(ui.px(360), ui.px(10), ui.px(22), 0, 0, 0));
-        return bar;
+        container.addView(bar);
+        progressText = ui.text("", 24, ui.muted, false);
+        container.addView(progressText, ui.lp(Ui.MATCH, Ui.WRAP, ui.px(32), 0, ui.px(32), ui.px(16)));
+        return container;
     }
 
     private void updateStatus() {
@@ -279,6 +293,11 @@ public final class MainActivity extends Activity {
         statusText.setTextColor(state.failed ? ui.danger : ui.muted);
         ((GradientDrawable) statusDot.getBackground()).setColor(state.failed ? ui.danger : state.busy.get() ? ui.accent : ui.ok);
         progress.setVisibility(state.busy.get() ? View.VISIBLE : View.GONE);
+        TaskProgress.Snapshot snapshot = state.progress.snapshot();
+        progress.setIndeterminate(snapshot.percent() < 0);
+        if (snapshot.percent() >= 0) progress.setProgress(snapshot.percent());
+        progressText.setText(state.busy.get() ? snapshot.stage() + "\n" + snapshot.summary() : state.title.equals("就绪") ? "尚无任务 · 所有镜像处理均在本机完成" : snapshot.summary());
+        progressText.setVisibility(state.title.equals("就绪") ? View.GONE : View.VISIBLE);
     }
 
     // ---------------------------------------------------------------- pane scaffold
@@ -346,13 +365,16 @@ public final class MainActivity extends Activity {
         link.header.addView(fingerprintChip);
         link.note("通过 CP SSH 临时覆盖资源，不刷写固件。默认不修改任何声音。");
         LinearLayout g = ui.group();
-        ui.addRow(g, ui.infoRow(ui.mono("198.18.44.2 : 22  ·  root", 32, ui.ink)));
+        cpAddressText = ui.mono("", 32, ui.ink);
+        ui.addRow(g, ui.infoRow(cpAddressText));
+        ui.addRow(g, ui.actionRow("修改 CP IP 地址", Ui.Tone.ACCENT, click(this::editCpAddress)));
         ui.divide(g);
         password = field(g, "password", "SSH 密码（留空即空密码；不保存）", "", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD, "留空 = 空密码", "", 0);
         ui.addRow(g, ui.actionRow("检测并确认 SSH 主机指纹", Ui.Tone.NEUTRAL, click(() -> task("检测 SSH 主机身份", () -> {
             SshAccess.KeyOffer offer = SshAccess.inspectKey(this);
-            runOnUiThread(() -> confirm("确认 CP 主机指纹", "请确认这是车内 CP。重启后密钥变化也需要重新确认。\n\n" + offer.fingerprint, () -> {
-                prefs().edit().putString("sshKnown", SshAccess.HOST + " " + offer.type + " " + offer.key).apply();
+            runOnUiThread(() -> confirm("确认 CP 主机指纹", "地址：" + offer.host + "\n请确认这是车内 CP。重启后密钥变化也需要重新确认。\n\n" + offer.fingerprint, () -> {
+                if (!offer.host.equals(SshAccess.host(this))) {error("CP 地址已变化，请重新检测主机指纹"); return;}
+                prefs().edit().putString("sshKnown", offer.host + " " + offer.type + " " + offer.key).apply();
                 state.report("已保存当前 CP 主机指纹，后续严格匹配。");
                 updateConnection();
             }));
@@ -457,9 +479,10 @@ public final class MainActivity extends Activity {
 
     private void updateConnection() {
         if (fingerprintChip == null) return;
-        boolean known = !prefs().getString("sshKnown", "").isEmpty();
+        boolean known = SshAccess.trusted(this);
         ui.setChip(fingerprintChip, known ? "指纹已确认" : "指纹未确认", known ? Ui.Tone.OK : Ui.Tone.WARN);
-        navSub[0][0].setText("198.18.44.2 · " + (known ? "指纹已确认" : "指纹未确认"));
+        cpAddressText.setText(SshAccess.host(this) + " : 22  ·  root");
+        navSub[0][0].setText(SshAccess.host(this) + " · " + (known ? "指纹已确认" : "指纹未确认"));
         navSub[0][3].setText("开机恢复：" + (prefs().getBoolean("reapply", false) ? "开启" : "关闭"));
     }
 
@@ -474,6 +497,7 @@ public final class MainActivity extends Activity {
     private View[] workshopPanes() {
         // 0 · device
         Pane device = new Pane(1, 0);
+        device.note("操作顺序：① 识别并备份当前分区 → ② 选择镜像、勾选修改并生成副本 → ③ 复核并写入。导入外部镜像也不能跳过当前分区备份。");
         LinearLayout dg = ui.group();
         LinearLayout slot = ui.horizontal();
         slotText = ui.mono("—", 84, ui.accent);
@@ -482,20 +506,21 @@ public final class MainActivity extends Activity {
         deviceText = ui.text("尚未识别 CP 分区及当前槽位", 28, ui.ink, false);
         slot.addView(deviceText, ui.lp(0, Ui.WRAP, 1));
         ui.addRow(dg, ui.infoRow(slot));
-        ui.addRow(dg, ui.actionRow("授权文件管理权限", Ui.Tone.NEUTRAL, click(() -> startActivity(new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:" + getPackageName()))))));
+        permissionText = ui.text("", 26, ui.muted, false);
+        ui.addRow(dg, ui.infoRow(permissionText));
+        ui.addRow(dg, ui.actionRow("前往 EVCC 授权本应用权限", Ui.Tone.ACCENT, click(this::openPermissions)));
         ui.addRow(dg, ui.actionRow("检查权限并识别当前 CP 槽位", Ui.Tone.ACCENT, click(() -> withStorage("识别 CP 分区", () -> state.workshop.identify()))));
-        ui.addRow(dg, ui.actionRow("导入本机 / U 盘镜像", Ui.Tone.NEUTRAL, click(() -> pick(11, "application/octet-stream"))));
         device.add(dg);
         device.note("镜像库：当前 Android 用户的 Documents/EVDashboard。卸载应用不会主动删除此目录；请另存重要备份到独立介质。");
-        device.footer(null, ui.button("导出当前分区（完整备份）", Ui.Look.PRIMARY, click(() -> confirm("导出仪表分区", "将只读复制当前 CP 分区，不修改车辆。完成校验后请确认是原始还是已修改镜像。请保持驻车、供电稳定且无 OTA。", () -> withStorage("导出完整分区", () -> {
-            ImageRecord r = state.workshop.exportPartition();
-            state.selected = r.id;
-            runOnUiThread(() -> classify(r));
-        })))));
+        device.footer(ui.button("已有镜像 → 进入第 2 步", Ui.Look.TINT, click(() -> select(1, 1))), ui.button("识别并导出完整备份", Ui.Look.PRIMARY, click(this::beginExport)));
 
         // 1 · library
         Pane library = new Pane(1, 1);
-        library.note("原始、历史修改及导入镜像共用一个列表。选中不等于允许写入。");
+        library.note("先在下方选择一份来源镜像，再查看 SSH / 密码状态并勾选修改。生成的是独立副本，原备份保持不变；选中不等于允许写入。");
+        Button importImage = ui.button("从本机 / U 盘导入镜像", Ui.Look.TINT, click(() -> pick(11, "application/octet-stream")));
+        importImage.setMinimumHeight(ui.px(96));
+        library.add(importImage);
+        library.caption("镜像库 · 选择一份来源镜像");
         imageList = ui.group();
         library.add(imageList);
         library.caption("所选镜像");
@@ -503,6 +528,7 @@ public final class MainActivity extends Activity {
         selectedText = ui.text("请先选择一份镜像", 26, ui.ink, false);
         ui.addRow(info, ui.infoRow(selectedText));
         library.add(info);
+        library.caption("需要进行的修改（可多选）");
         LinearLayout options = ui.group();
         Ui.SwitchRow ssh = toggleRow("enableSsh", "开启 SSH 开机监听（22 端口）", "", false);
         Ui.SwitchRow blank = toggleRow("clearRoot", "清除 root 密码，允许空密码登录", "", false);
@@ -519,36 +545,39 @@ public final class MainActivity extends Activity {
             try {
                 ImageRecord r = chosen();
                 saveImageId = r.id;
-                Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT).setType("application/octet-stream").addCategory(Intent.CATEGORY_OPENABLE).putExtra(Intent.EXTRA_TITLE, "instrument-" + r.id + ".img");
-                startActivityForResult(i, 14);
+                saveLocally(14, "instrument-" + r.id + ".img");
             } catch (Exception e) {error(e.getMessage());}
         })));
         ui.addRow(actions, ui.actionRow("刷新镜像存储列表", Ui.Tone.NEUTRAL, click(this::refreshLibrary)));
+        ui.addRow(actions, ui.actionRow("删除所选镜像（保留备份保护）", Ui.Tone.DANGER, click(this::deleteSelected)));
         library.add(actions);
-        library.footer(null, ui.button("修改并生成新镜像", Ui.Look.PRIMARY, click(() -> {
+        library.footer(ui.button("无需修改 → 第 3 步", Ui.Look.TINT, click(() -> {try {chosen(); select(1, 2);} catch (Exception e) {error(e.getMessage());}})), ui.button("生成新的修改镜像", Ui.Look.PRIMARY, click(() -> {
             boolean sshOn = enableSsh.isChecked(), blankOn = clearRoot.isChecked();
+            if (!sshOn && !blankOn) {error("请先勾选需要进行的修改；如果无需修改，可直接进入第 3 步复核。"); return;}
             withStorage("生成镜像", () -> {
                 ImageRecord r = chosen();
                 ImageRecord result = state.workshop.generate(r, sshOn, blankOn);
                 state.selected = result.id;
                 state.report("新镜像生成并完整复核通过，原文件未改变；尚未刷写。");
+                runOnUiThread(() -> {refreshLibrary(); select(1, 2);});
             });
         })));
 
         // 2 · write and delete
         Pane danger = new Pane(1, 2);
-        danger.add(ui.callout("风险：", "写入前还需通过镜像校验并完成四项风险确认。校验通过不能保证零风险，也不能保证 A/B 自动回退。删除只把记录移入 deleted 暂存目录，可人工恢复。", Ui.Tone.DANGER));
+        danger.add(ui.callout("风险：", "校验通过不能保证零风险或 A/B 自动回退。写入可能导致仪表损坏、需要售后自费维修；必须保持驻车、供电稳定、应用前台且无 OTA。", Ui.Tone.DANGER));
         LinearLayout current = ui.group();
-        dangerInfo = ui.text("请先在“镜像库”选择一份镜像", 28, ui.ink, false);
+        dangerInfo = ui.text("请先在第 2 步“选择与修改”中选择一份镜像", 28, ui.ink, false);
         ui.addRow(current, ui.infoRow(dangerInfo));
         danger.caption("所选镜像");
         danger.add(current);
-        danger.caption("危险操作");
+        danger.caption("先复核，再写入（每次写入仍会重新核验）");
         LinearLayout dg2 = ui.group();
-        ui.addRow(dg2, ui.actionRow("删除所选镜像", Ui.Tone.DANGER, click(this::deleteSelected)));
+        ui.addRow(dg2, ui.actionRow("重新读取并校验所选镜像", Ui.Tone.ACCENT, click(() -> withStorage("重新校验镜像", () -> {ImageRecord r = chosen(); state.workshop.verifyGenerated(r); state.report(r.message);}))));
         writeRow = ui.actionRow("将所选镜像写入当前 CP 槽位", Ui.Tone.DANGER, click(this::confirmFlash));
         ui.addRow(dg2, writeRow);
         danger.add(dg2);
+        danger.footer(ui.button("← 返回第 2 步选镜像", Ui.Look.TINT, click(() -> select(1, 1))), null);
 
         // 3 · tasks and recovery
         Pane audit = new Pane(1, 3);
@@ -556,8 +585,7 @@ public final class MainActivity extends Activity {
         LinearLayout ag = ui.group();
         ui.addRow(ag, ui.actionRow("检查未完成刷写任务（不会重新写入）", Ui.Tone.ACCENT, click(() -> withStorage("核验未完成任务", () -> state.workshop.recoverPending()))));
         ui.addRow(ag, ui.actionRow("导出本次诊断记录", Ui.Tone.NEUTRAL, click(() -> {
-            Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT).setType("text/plain").addCategory(Intent.CATEGORY_OPENABLE).putExtra(Intent.EXTRA_TITLE, "instrument-workshop-report.txt");
-            startActivityForResult(i, 15);
+            saveLocally(15, "instrument-workshop-report-" + System.currentTimeMillis() + ".txt");
         })));
         ui.addRow(ag, ui.actionRow("版本、数据说明与开源许可", Ui.Tone.NEUTRAL, click(this::licenses)));
         audit.add(ag);
@@ -587,13 +615,13 @@ public final class MainActivity extends Activity {
             navSub[1][1].setText(records.size() + " 份镜像" + (state.selected.isEmpty() ? "" : " · 已选中 1"));
             if (state.selected.isEmpty()) {
                 selectedText.setText("请先选择一份镜像");
-                dangerInfo.setText("请先在“镜像库”选择一份镜像");
+                dangerInfo.setText("请先在第 2 步“选择与修改”中选择一份镜像");
                 writeRow.setAlpha(.5f);
             } else {
                 ImageRecord r = state.library.get(state.selected);
-                selectedText.setText(r.name + "\n" + r.categoryLabel() + "\nSSH 配置：" + r.socket + "  / root：" + r.password + "\n允许空密码参数：" + (r.blankAllowed ? "是" : "否 / 未知")
+                selectedText.setText(r.name + "\n" + r.categoryLabel() + "\nSSH 配置：" + sshLabel(r.socket) + "  / root 密码：" + passwordLabel(r.password) + "\n允许空密码参数：" + (r.blankAllowed ? "是" : "否 / 未知")
                     + "\n固件基线：" + (r.build.isEmpty() ? "未知" : r.build.substring(0, 12)) + "\nSHA-256：" + r.sha + "\n" + r.message);
-                dangerInfo.setText(r.name + "\n" + r.categoryLabel() + "\n" + (r.validated ? "结构已校验，可进入写入确认" : "尚未通过结构校验：写入已锁定，请先在“镜像库”重新校验"));
+                dangerInfo.setText(r.name + "\n" + r.categoryLabel() + "\n" + (r.validated ? "结构已校验，可进入写入确认；仍需确认本机备份和兼容性" : "尚未通过结构校验：写入已锁定，请先重新校验"));
                 writeRow.setAlpha(r.validated ? 1f : .5f);
             }
         } catch (Exception e) {
@@ -620,7 +648,7 @@ public final class MainActivity extends Activity {
         col.addView(meta);
         row.addView(col, ui.lp(0, Ui.WRAP, 1));
         if (r.original()) row.addView(ui.chip("删除受保护", Ui.Tone.WARN));
-        row.setOnClickListener(v -> {state.selected = r.id; refreshLibrary();});
+        row.setOnClickListener(v -> {if (state.busy.get()) {error("任务进行中，暂不能更换所选镜像"); return;} state.selected = r.id; refreshLibrary();});
         return row;
     }
 
@@ -631,7 +659,70 @@ public final class MainActivity extends Activity {
     }
 
     private void task(String label, AppState.Job job) {try {state.submit(label, job);} catch (Exception e) {error(e.getMessage());}}
-    private void withStorage(String label, AppState.Job job) {try {state.storage(); task(label, job);} catch (Exception e) {error(e.getMessage());}}
+    private void withStorage(String label, AppState.Job job) {
+        if (!requireStorage()) return;
+        try {state.storage(); task(label, job);} catch (Exception e) {error(e.getMessage());}
+    }
+
+    private void updatePermissions() {
+        if (permissionText == null) return;
+        boolean granted = Environment.isExternalStorageManager();
+        permissionText.setText(granted ? "文件管理权限：已授权 · 可使用本机 / U 盘文件选择器" : "文件管理权限：未授权 · 请前往 EVCC 授予“所有文件访问权限”");
+        permissionText.setTextColor(granted ? ui.ok : ui.warn);
+    }
+
+    private boolean requireStorage() {
+        if (Environment.isExternalStorageManager()) return true;
+        new UiDialog(this, ui, "需要文件管理权限")
+            .message("用于保存完整分区备份、读取本机 / U 盘镜像及音频。请到 EVCC 的仪表工坊权限页授予“所有文件访问权限”。返回后会自动检查，但不会自动开始导出或写入，请重新点击操作。")
+            .negative("稍后", null).positive("前往 EVCC 授权", Ui.Look.PRIMARY, this::openPermissions).show();
+        return false;
+    }
+
+    private void openPermissions() {
+        if (state.busy.get()) {error("请等待当前任务结束后再离开应用授权"); return;}
+        Intent intent = new Intent(Intent.ACTION_VIEW, new Uri.Builder().scheme("evcc").authority("permissions").path("/app").appendQueryParameter("package", getPackageName()).build()).setPackage("com.kooo.evcc");
+        try {startActivity(intent);}
+        catch (ActivityNotFoundException | SecurityException e) {
+            new UiDialog(this, ui, "未找到可用的 EVCC 授权入口")
+                .message("请安装或更新支持该入口的 EVCC。也可以尝试系统权限页；若车机裁剪了系统设置，需要使用 EVCC 授权。不会假定跳转成功就已经获得权限。")
+                .negative("返回", null).positive("尝试系统权限页", Ui.Look.TINT, () -> {
+                    try {startActivity(new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:" + getPackageName())));}
+                    catch (ActivityNotFoundException | SecurityException unavailable) {error("车机没有可用的系统权限页面，请在 EVCC 中授权仪表工坊的所有文件访问权限。");}
+                }).show();
+        }
+    }
+
+    private void editCpAddress() {
+        if (state.busy.get()) {error("当前任务进行中，不能更改 CP 地址"); return;}
+        LinearLayout content = ui.vertical();
+        EditText address = ui.field(content, "CP IPv4 地址", SshAccess.host(this), InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI, CpAddress.DEFAULT, "", 0);
+        new UiDialog(this, ui, "修改 CP 连接地址").view(content)
+            .message("仅影响 AVAS / 提示音的 SSH 连接；端口 22，用户 root。不会改变本机分区识别或写入目标。地址变化后需要重新确认指纹，开机音效恢复会关闭。")
+            .negative("取消", null).positive("保存地址", Ui.Look.PRIMARY, () -> {
+                try {
+                    FilesEx.require(!state.busy.get(), "已有任务运行，请结束后再修改");
+                    String host = CpAddress.parse(address.getText().toString());
+                    if (!host.equals(SshAccess.host(this))) prefs().edit().putString("cpHost", host).remove("sshKnown").putBoolean("reapply", false).apply();
+                    render(getResources().getConfiguration());
+                } catch (Exception e) {error(e.getMessage());}
+            }).show();
+    }
+
+    private void beginExport() {
+        withStorage("只读识别导出目标", () -> {
+            DeviceInfo target = state.workshop.identify();
+            runOnUiThread(() -> confirm("确认完整备份的目标", target.summary() + "\n\n将只读复制以上当前 CP 分区，不修改车辆。原有文件不覆盖，完成后请选择原始或已修改镜像。请保持驻车、供电稳定且无 OTA。", () -> withStorage("导出完整分区", () -> {
+                target.same(state.workshop.identify());
+                ImageRecord record = state.workshop.exportPartition();
+                state.selected = record.id;
+                runOnUiThread(() -> {refreshLibrary(); select(1, 1); classify(record);});
+            })));
+        });
+    }
+
+    private static String sshLabel(String value) {return switch (value) {case "ENABLED" -> "已配置开机监听"; case "DISABLED" -> "未配置开机监听"; default -> "未知 / 不支持（" + value + "）";};}
+    private static String passwordLabel(String value) {return switch (value) {case "EMPTY" -> "空密码"; case "SET" -> "已设置"; case "LOCKED" -> "账号已锁定"; default -> "未知 / 不支持（" + value + "）";};}
 
     private void confirm(String title, String message, Runnable yes) {
         new UiDialog(this, ui, title).message(message).negative("取消", null).positive("确认", Ui.Look.PRIMARY, yes).show();
@@ -730,12 +821,47 @@ public final class MainActivity extends Activity {
     // ---------------------------------------------------------------- file picking and activity results
 
     private void pick(int code, String mime) {
-        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT).setType(mime).addCategory(Intent.CATEGORY_OPENABLE);
-        if (code == 11) i.setType("*/*");
-        startActivityForResult(i, code);
+        if (state.busy.get()) {error("请等待当前任务结束后再选择文件"); return;}
+        if (!requireStorage()) return;
+        if (filePicker != null) filePicker.close();
+        filePicker = new LocalFilePicker(this, ui);
+        filePicker.open(code != 11, file -> importSelectedUri(code, Uri.fromFile(file)));
+    }
+
+    private void saveLocally(int request, String name) {
+        if (state.busy.get()) {error("请等待当前任务结束后再另存文件"); return;}
+        if (!requireStorage()) return;
+        String imageId = saveImageId;
+        if (filePicker != null) filePicker.close();
+        filePicker = new LocalFilePicker(this, ui);
+        File protectedRoot = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "EVDashboard");
+        filePicker.save(name, protectedRoot, file -> withStorage(request == 14 ? "另存并回读镜像" : "导出诊断记录", () -> {
+            // Recheck just before the exclusive creation; never overwrite a backup or prior export.
+            File target = LocalFiles.destination(file.getParentFile(), file.getParentFile(), file.getName(), protectedRoot);
+            if (request == 14) {
+                ImageRecord record = state.library.get(imageId);
+                state.progress.stage("校验另存来源", record.bytes);
+                FilesEx.require(FilesEx.digest(state.library.file(record), state.progress::advance).equals(record.sha), "源镜像已变化，拒绝另存");
+                FilesEx.require(target.createNewFile(), "同名文件已存在，拒绝覆盖");
+                state.progress.stage("复制到所选位置", record.bytes);
+                try (InputStream in = new FileInputStream(state.library.file(record)); FileOutputStream out = new FileOutputStream(target)) {
+                    FilesEx.transfer(in, out, record.bytes, state.progress::advance); out.getFD().sync();
+                }
+                state.progress.stage("回读另存文件并校验摘要", record.bytes);
+                FilesEx.require(FilesEx.digest(target, state.progress::advance).equals(record.sha), "另存文件回读校验失败，文件保留待检查");
+                state.report("另存并回读校验通过：\n" + target + "\n镜像库原文件未改变。");
+            } else {
+                File log = new File(getFilesDir(), "last-task.log");
+                String report = "仪表工坊 0.1.0\n" + (log.isFile() ? FilesEx.readText(log) : state.status);
+                FilesEx.require(target.createNewFile(), "同名文件已存在，拒绝覆盖");
+                try (FileOutputStream out = new FileOutputStream(target)) {out.write(report.getBytes(java.nio.charset.StandardCharsets.UTF_8)); out.getFD().sync();}
+                state.report("诊断记录已导出：\n" + target + "\n不包含密码或 shadow 密码字段。");
+            }
+        }));
     }
 
     private String displayName(Uri uri) {
+        if ("file".equals(uri.getScheme())) return new File(uri.getPath()).getName();
         try (Cursor c = getContentResolver().query(uri, new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
             if (c != null && c.moveToFirst()) {String name = c.getString(0); return name.length() > 100 ? name.substring(0, 100) : name;}
         } catch (Exception ignored) {}
@@ -745,7 +871,10 @@ public final class MainActivity extends Activity {
     @Override protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
         if (result != RESULT_OK || data == null || data.getData() == null) return;
-        Uri uri = data.getData();
+        importSelectedUri(request, data.getData());
+    }
+
+    private void importSelectedUri(int request, Uri uri) {
         if (request == 11) {
             String name = displayName(uri);
             withStorage("导入并检查镜像", () -> {
@@ -773,33 +902,6 @@ public final class MainActivity extends Activity {
                     }
                 });
                 state.report("音频已保存到本机，尚未应用到 CP。");
-            });
-        } else if (request == 14) {
-            String id = saveImageId;
-            withStorage("另存镜像", () -> {
-                ImageRecord r = state.library.get(id);
-                FilesEx.require(state.library.intact(r), "源镜像校验失败");
-                try (InputStream in = new FileInputStream(state.library.file(r)); OutputStream out = getContentResolver().openOutputStream(uri, "w")) {
-                    FilesEx.require(out != null, "无法写入所选位置");
-                    FilesEx.transfer(in, out);
-                }
-                try (InputStream verify = getContentResolver().openInputStream(uri)) {
-                    java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
-                    byte[] buffer = new byte[1024 * 1024];
-                    int n;
-                    long count = 0;
-                    while ((n = verify.read(buffer)) != -1) {md.update(buffer, 0, n); count += n;}
-                    FilesEx.require(count == r.bytes && FilesEx.hex(md.digest()).equals(r.sha), "另存文件回读校验失败");
-                }
-                state.report("另存完成，目标文件已重新读取并核对摘要。");
-            });
-        } else if (request == 15) {
-            task("导出诊断记录", () -> {
-                String report = "仪表工坊 0.1.0\n" + state.title + "\n" + state.status + "\n";
-                File log = new File(getFilesDir(), "last-task.log");
-                if (log.isFile()) report += FilesEx.readText(log);
-                try (OutputStream out = getContentResolver().openOutputStream(uri, "w")) {out.write(report.getBytes(java.nio.charset.StandardCharsets.UTF_8));}
-                state.report("诊断记录已导出，不包含密码或 shadow 密码字段。");
             });
         }
     }

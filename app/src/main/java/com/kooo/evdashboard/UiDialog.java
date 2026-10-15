@@ -70,6 +70,8 @@ final class UiDialog {
     }
 
     UiDialog onCancel(Runnable r) {onCancel = r; return this;}
+    void dismiss() {dialog.dismiss();}
+    boolean isShowing() {return dialog.isShowing();}
 
     private Button add(String label, Ui.Look look, Runnable action) {
         Button b = ui.button(label, look, v -> {dialog.dismiss(); if (action != null) action.run();});

@@ -37,7 +37,7 @@ public class LocalImagePipelineTest {
         Context app=InstrumentationRegistry.getInstrumentation().getTargetContext();
         File probe=new File(app.getExternalFilesDir(null),"namespace-test-"+UUID.randomUUID()+".txt");
         File copy=new File(app.getExternalFilesDir(null),"namespace-copy-"+UUID.randomUUID()+".bin");
-        try{FilesEx.atomicText(probe,"namespace-"+UUID.randomUUID());RootAccess root=new RootAccess(app);root.connect();String path=root.sharedFile(probe);assertEquals(FilesEx.digest(probe),root.run("sha256sum "+FilesEx.quote(path),15).split("\\s+")[0]);assertTrue(copy.createNewFile());root.copyReadOnly(path,copy,probe.length());assertEquals(probe.length(),copy.length());assertEquals(FilesEx.digest(probe),FilesEx.digest(copy));}
+        try{FilesEx.atomicText(probe,"namespace-"+UUID.randomUUID());RootAccess root=new RootAccess(app);root.connect();String path=root.sharedFile(probe);assertEquals(FilesEx.digest(probe),root.run("sha256sum "+FilesEx.quote(path),15).split("\\s+")[0]);assertTrue(copy.createNewFile());java.util.concurrent.atomic.AtomicLong copied=new java.util.concurrent.atomic.AtomicLong();root.copyReadOnly(path,copy,probe.length(),copied::set);assertEquals(probe.length(),copied.get());assertEquals(probe.length(),copy.length());assertEquals(FilesEx.digest(probe),FilesEx.digest(copy));}
         finally{Files.deleteIfExists(probe.toPath());Files.deleteIfExists(copy.toPath());}
     }
     @Test public void fullLocalGenerateAndReinspect()throws Exception {

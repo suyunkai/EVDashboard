@@ -20,12 +20,15 @@ public final class RootAccess {
     }
     public String run(String script,int timeout)throws Exception{if(method.isEmpty())connect();return method.equals("su")?process(new String[]{"su","-c",script},timeout):adb.run(script,timeout);}
     public void copyReadOnly(String source,File destination,long expected)throws Exception{
+        copyReadOnly(source,destination,expected,n -> {});
+    }
+    public void copyReadOnly(String source,File destination,long expected,java.util.function.LongConsumer progress)throws Exception{
         if(method.isEmpty())connect();com.kooo.evdashboard.core.FilesEx.require(expected>0&&destination.isFile()&&destination.length()==0,"复制目标必须是本任务新建的空文件");
         try(FileOutputStream out=new FileOutputStream(destination)){
-            if(method.equals("adb"))adb.copyReadOnly(source,out,expected,300);
+            if(method.equals("adb"))adb.copyReadOnly(source,new FilterOutputStream(out){long count;@Override public void write(byte[] b,int offset,int length)throws IOException{out.write(b,offset,length);count+=length;progress.accept(count);}@Override public void write(byte[] b)throws IOException{write(b,0,b.length);}},expected,300);
             else {
                 Process p=new ProcessBuilder("su","-c","cat "+com.kooo.evdashboard.core.FilesEx.quote(source)).redirectErrorStream(true).start();ScheduledExecutorService timer=Executors.newSingleThreadScheduledExecutor();ScheduledFuture<?> deadline=timer.schedule(()->{p.destroyForcibly();},300,TimeUnit.SECONDS);
-                try(InputStream in=p.getInputStream()){byte[] buffer=new byte[65536];long count=0;int n;while((n=in.read(buffer))!=-1){com.kooo.evdashboard.core.FilesEx.require(n<=expected-count,"复制数据超过预期长度");out.write(buffer,0,n);count+=n;}com.kooo.evdashboard.core.FilesEx.require(p.waitFor(10,TimeUnit.SECONDS)&&p.exitValue()==0&&count==expected,"复制进程失败或长度不完整");}
+                try(InputStream in=p.getInputStream()){byte[] buffer=new byte[65536];long count=0;int n;while((n=in.read(buffer))!=-1){com.kooo.evdashboard.core.FilesEx.require(n<=expected-count,"复制数据超过预期长度");out.write(buffer,0,n);count+=n;progress.accept(count);}com.kooo.evdashboard.core.FilesEx.require(p.waitFor(10,TimeUnit.SECONDS)&&p.exitValue()==0&&count==expected,"复制进程失败或长度不完整");}
                 finally{deadline.cancel(false);timer.shutdownNow();if(p.isAlive())p.destroyForcibly();}
             }
             out.getFD().sync();

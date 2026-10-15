@@ -22,9 +22,16 @@ public final class ParkedProbe {
             Object thread=threadClass.getMethod("systemMain").invoke(null);
             Context context=(Context)threadClass.getMethod("getSystemContext").invoke(thread);
             carClass=Class.forName("android.car.Car");
-            Class<?> listener=Class.forName("android.car.Car$CarServiceLifecycleListener");
-            car=carClass.getMethod("createCar",Context.class,Handler.class,long.class,listener)
-                .invoke(null,context,new Handler(Looper.getMainLooper()),5000L,null);
+            // This root app_process has no registered application thread for bindService.
+            // Attach to the already running Car service; missing APIs/services remain a denial.
+            Object binder=Class.forName("android.os.ServiceManager").getMethod("getService",String.class)
+                .invoke(null,"car_service");
+            if(binder==null)throw new IllegalStateException("Car service unavailable");
+            Class<?> serviceClass=Class.forName("android.car.ICar");
+            Object service=Class.forName("android.car.ICar$Stub").getMethod("asInterface",android.os.IBinder.class)
+                .invoke(null,binder);
+            car=carClass.getConstructor(Context.class,serviceClass,Handler.class)
+                .newInstance(context,service,new Handler(Looper.getMainLooper()));
             if(car==null)throw new IllegalStateException("Car unavailable");
             Object manager=carClass.getMethod("getCarManager",String.class).invoke(car,"property");
             for(int sample=0;sample<2;sample++) {

@@ -8,9 +8,12 @@ import java.security.MessageDigest;
 public final class FilesEx {
     private FilesEx() {}
     public static String digest(File file) throws Exception {
+        return digest(file, n -> {});
+    }
+    public static String digest(File file, java.util.function.LongConsumer progress) throws Exception {
         if (!file.isFile() || Files.isSymbolicLink(file.toPath())) throw new IOException("镜像不存在或是符号链接");
         MessageDigest md = MessageDigest.getInstance("SHA-256");
-        try (InputStream in = new FileInputStream(file)) { byte[] b = new byte[1024*1024]; int n; while ((n=in.read(b))!=-1) md.update(b,0,n); }
+        try (InputStream in = new FileInputStream(file)) { byte[] b = new byte[1024*1024]; int n; long count=0; while ((n=in.read(b))!=-1) {md.update(b,0,n);count+=n;progress.accept(count);} }
         return hex(md.digest());
     }
     public static String hashText(String text) throws Exception { return hex(MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8))); }
@@ -24,8 +27,16 @@ public final class FilesEx {
     }
     public static String readText(File file) throws IOException { return new String(Files.readAllBytes(file.toPath()),StandardCharsets.UTF_8); }
     public static void transfer(InputStream in,OutputStream out)throws IOException{byte[] buffer=new byte[1024*1024];int n;while((n=in.read(buffer))!=-1)out.write(buffer,0,n);}
+    public static long transfer(InputStream in,OutputStream out,long expected,java.util.function.LongConsumer progress)throws IOException{
+        byte[] buffer=new byte[1024*1024];int n;long count=0;
+        while((n=in.read(buffer))!=-1){require(n<=expected-count,"文件数据超过预期长度");out.write(buffer,0,n);count+=n;progress.accept(count);}
+        require(count==expected,"文件复制长度不完整");return count;
+    }
     public static long copy(InputStream in,File to,long limit) throws Exception {
+        return copy(in,to,limit,n -> {});
+    }
+    public static long copy(InputStream in,File to,long limit,java.util.function.LongConsumer progress) throws Exception {
         require(!to.exists(),"目标文件已存在，拒绝覆盖"); long total=0;
-        try(FileOutputStream out=new FileOutputStream(to)){byte[] b=new byte[1024*1024];int n;while((n=in.read(b))!=-1){total+=n;if(total>limit)throw new IOException("文件超过支持的大小");out.write(b,0,n);}out.getFD().sync();}return total;
+        try(FileOutputStream out=new FileOutputStream(to)){byte[] b=new byte[1024*1024];int n;while((n=in.read(b))!=-1){total+=n;if(total>limit)throw new IOException("文件超过支持的大小");out.write(b,0,n);progress.accept(total);}out.getFD().sync();}return total;
     }
 }

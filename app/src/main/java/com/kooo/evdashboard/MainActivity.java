@@ -25,7 +25,7 @@ public final class MainActivity extends Activity {
         {"设备与分区", "镜像库", "写入与删除", "任务与恢复"}};
     private static final String[][] SUBTITLES = {
         {"", "自定义音频与曲线", "自定义锁车声", "", "谨慎操作"},
-        {"", "", "需四项风险确认", "无未完成任务"}};
+        {"", "", "需四项风险确认", "写后回读与恢复"}};
     private static final int[][] ICONS = {
         {R.drawable.ic_ui_link, R.drawable.ic_ui_audio, R.drawable.ic_ui_lock, R.drawable.ic_ui_save, R.drawable.ic_ui_flask},
         {R.drawable.ic_ui_board, R.drawable.ic_ui_disk, R.drawable.ic_ui_warn, R.drawable.ic_ui_log}};
@@ -430,11 +430,11 @@ public final class MainActivity extends Activity {
         LinearLayout sg = ui.group();
         Ui.SwitchRow boot = ui.switchRow("开机尝试恢复已保存的 AVAS / 锁车音效", "默认关闭；仅在能独立确认 P 挡且零车速时执行", prefs().getBoolean("reapply", false));
         boot.toggle.setOnCheckedChangeListener((b, on) -> {
-            if (!on) {prefs().edit().putBoolean("reapply", false).apply(); return;}
+            if (!on) {prefs().edit().putBoolean("reapply", false).apply(); updateConnection(); return;}
             new UiDialog(this, ui, "启用开机音效恢复")
                 .message("仅在能独立确认 P 挡、速度为零时执行；无法确认或 SSH 指纹变化时停止并提示。临时静音和 AVAS 停止不会开机重放。仅支持空密码自动连接。该自动功能需要实车验收。")
                 .negative("取消", () -> boot.toggle.setChecked(false))
-                .positive("启用", Ui.Look.PRIMARY, () -> prefs().edit().putBoolean("reapply", true).apply())
+                .positive("启用", Ui.Look.PRIMARY, () -> {prefs().edit().putBoolean("reapply", true).apply(); updateConnection();})
                 .onCancel(() -> boot.toggle.setChecked(false))
                 .show();
         });

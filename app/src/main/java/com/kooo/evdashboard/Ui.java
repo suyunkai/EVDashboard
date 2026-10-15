@@ -324,6 +324,11 @@ final class Ui {
             setMeasuredDimension(box ? ui.px(56) : ui.px(104), box ? ui.px(56) : ui.px(60));
         }
 
+        @Override protected void drawableStateChanged() {
+            super.drawableStateChanged();
+            invalidate();
+        }
+
         @Override protected void onDraw(Canvas c) {
             int w = getWidth(), h = getHeight();
             RectF r = bounds;

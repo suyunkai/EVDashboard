@@ -1,5 +1,18 @@
-<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="#143F46" android:pathData="M0,0h108v108h-108z" />
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#A7E5CD" android:strokeWidth="7" android:strokeLineCap="round" android:pathData="M22,72A37,37 0,1 1,86 72M54,56L73,35M33,71h42" />
-    <path android:fillColor="#FFFFFF" android:pathData="M48,56a6,6 0,1 0,12 0a6,6 0,1 0,-12 0" />
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Transparent foreground; the launcher owns the background shape and mask. -->
+    <path android:fillColor="#00000000" android:strokeColor="#F0FFF9"
+        android:strokeWidth="5.5" android:strokeLineCap="round"
+        android:pathData="M29,69A29,29 0,1 1,79 69" />
+    <path android:fillColor="#00000000" android:strokeColor="#8DE4D6"
+        android:strokeWidth="2.6" android:strokeLineCap="round"
+        android:pathData="M31,54h5M38,36l3,4M54,30v5M70,36l-3,4M77,54h-5" />
+    <path android:fillColor="#8DF4D4"
+        android:pathData="M50.8,54.8L67.4,38.5Q69,37 68.2,39.3L57.2,59.2Z" />
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M49,57a5,5 0,1 0,10 0a5,5 0,1 0,-10 0" />
+    <path android:fillColor="#00000000" android:strokeColor="#D5FFF0"
+        android:strokeWidth="4.5" android:strokeLineCap="round"
+        android:pathData="M39,76h30" />
 </vector>

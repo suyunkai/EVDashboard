@@ -16,7 +16,7 @@ public final class TaskService extends Service {
         AppState state=(AppState)getApplication();
         com.kooo.evdashboard.core.TaskProgress.Snapshot p=state.progress.snapshot();
         PendingIntent open=PendingIntent.getActivity(this,0,new Intent(this,MainActivity.class),PendingIntent.FLAG_IMMUTABLE);
-        return new Notification.Builder(this,"maintenance").setSmallIcon(R.drawable.ic_workshop)
+        return new Notification.Builder(this,"maintenance").setSmallIcon(R.drawable.ic_stat_workshop)
             .setContentTitle(state.title+" · "+p.stage()).setContentText(p.summary())
             .setStyle(new Notification.BigTextStyle().bigText(p.summary()+"\n请保持应用前台、车辆驻车与稳定供电"))
             .setProgress(100,Math.max(0,p.percent()),p.percent()<0).setOnlyAlertOnce(true)

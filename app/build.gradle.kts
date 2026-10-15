@@ -15,9 +15,22 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+    signingConfigs {
+        create("aospTestkey") {
+            // Public AOSP test key, intentionally versioned for test builds.
+            storeFile = rootProject.file("signing/aosp-testkey.p12")
+            storeType = "PKCS12"
+            storePassword = "android"
+            keyAlias = "aosp-testkey"
+            keyPassword = "android"
+        }
+    }
     buildTypes {
         debug { isDebuggable = true }
-        release { isMinifyEnabled = false }
+        release {
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("aospTestkey")
+        }
     }
     packaging { jniLibs { useLegacyPackaging = true; keepDebugSymbols += "**/*.so" } }
     testOptions { unitTests.isReturnDefaultValues = true }

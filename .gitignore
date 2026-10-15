@@ -29,5 +29,8 @@ vendor/*/*/*.erofs
 *.pem
 *.jks
 *.keystore
+*.p12
+# This is the publicly known AOSP test key, intentionally included for test builds.
+!/signing/aosp-testkey.p12
 .env
 .env.*

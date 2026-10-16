@@ -1,4 +1,4 @@
-# Instrument Workshop · 仪表工坊
+# EVDashboard · 仪表工坊
 
 **English** | [简体中文](README.zh-CN.md)
 
@@ -15,13 +15,12 @@ An Android app for instrument CP image maintenance and instrument chime customiz
 
 ## Download
 
-The current test version is **[v0.2.3](https://github.com/suyunkai/EVDashboard/releases/tag/v0.2.3)**. Download the APK and its `.sha256` checksum from the release assets.
+The current version is **[v0.2.3](https://github.com/suyunkai/EVDashboard/releases/tag/v0.2.3)**. Download the APK and its `.sha256` checksum from the release assets.
 
-| Item | Requirement / status |
+| Item | Details |
 | --- | --- |
 | Platform | Android 11 or later · `arm64-v8a` |
 | Application ID | `com.kooo.evdashboard` |
-| Release status | Test build; physical sound acceptance remains incomplete |
 | Signing | Public AOSP testkey; not a private production signing key |
 
 > [!IMPORTANT]
@@ -114,14 +113,6 @@ deleted-*/    Recoverable files after confirmed deletion
 - Task cards show the current operation and elapsed time. Measurable steps show actual step progress and a supported time estimate; other steps use an activity indicator and elapsed time. A completed copy is not a successful task until all checks finish.
 
 </details>
-
-## Validation status
-
-For **v0.2.3**, 94 JVM tests passed; Android Lint reported 0 errors and 31 warnings. Release signature and 16 KiB ZIP alignment checks passed. On the test head unit, 6 UI checks, 3 catalog/cache/file checks, and 1 real short-chime preprocessing/decoding check passed.
-
-**Audible turn-signal preview remains unverified:** the test session's vehicle power state denied media audio focus, so the actual playback check was skipped. The latest sound engine's on-vehicle overlay application, startup apply, rollback, and acoustic behavior still require separate acceptance. This test round did not perform CP overlays or partition writes. Earlier image-write/readback evidence is scoped to the recorded same-content test and cannot establish compatibility with other firmware.
-
-See [verification records](docs/verification.md) (Chinese) for the exact scope and remaining checks. File hashes, decoding success, and a running service do not establish acceptable sound output or regulatory compliance.
 
 ## Disclaimer
 

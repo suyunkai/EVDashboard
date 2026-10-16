@@ -56,7 +56,7 @@ public class SoundUiTest {
         java.lang.reflect.Field libraryField=app.getClass().getDeclaredField("library");libraryField.setAccessible(true);Object library=libraryField.get(app);
         if(library!=null)for(Object record:(List<?>)library.getClass().getMethod("list").invoke(library))userNames.add((String)record.getClass().getField("name").get(record));
         for(SoundStore.Preset preset:store.presets())userNames.add(preset.name);
-        instrumentation.runOnMainSync(()->{visible("仪表提示音").performClick();clickRow(visible("声音目录"));}); instrumentation.waitForIdleSync();
+        instrumentation.runOnMainSync(()->{visible("仪表提示音").performClick();clickRow(visible("实际音效"));}); instrumentation.waitForIdleSync();
     }
     private byte[] backup(String name) throws Exception {File f=new File(root,name);return f.isFile()?Files.readAllBytes(f.toPath()):null;}
     @After public void cleanup() throws Exception {
@@ -95,7 +95,7 @@ public class SoundUiTest {
         capture("turn-dialog",d.getWindow().getDecorView());instrumentation.runOnMainSync(d::dismiss);
     }
     @Test public void renderNightCardsAndVolumeDialog() throws Exception {
-        instrumentation.runOnMainSync(()->{Configuration c=new Configuration(activity.getResources().getConfiguration());c.uiMode=(c.uiMode&~Configuration.UI_MODE_NIGHT_MASK)|Configuration.UI_MODE_NIGHT_YES;activity.onConfigurationChanged(c);visible("仪表提示音").performClick();clickRow(visible("声音目录"));});
+        instrumentation.runOnMainSync(()->{Configuration c=new Configuration(activity.getResources().getConfiguration());c.uiMode=(c.uiMode&~Configuration.UI_MODE_NIGHT_MASK)|Configuration.UI_MODE_NIGHT_YES;activity.onConfigurationChanged(c);visible("仪表提示音").performClick();clickRow(visible("实际音效"));});
         capture("night-cards",activity.getWindow().getDecorView());
         instrumentation.runOnMainSync(()->{ScrollView scroll=(ScrollView)tag(activity.getWindow().getDecorView(),"sound-scroll");scroll.scrollTo(0,scroll.getChildAt(0).getHeight());});instrumentation.waitForIdleSync();
         instrumentation.runOnMainSync(()->clickRow(visible("锁车提示"))); instrumentation.waitForIdleSync();
@@ -180,7 +180,7 @@ public class SoundUiTest {
         instrumentation.runOnMainSync(()->{try{
             java.lang.reflect.Field field=MainActivity.class.getDeclaredField("soundPanel");field.setAccessible(true);Object panel=field.get(activity);
             java.lang.reflect.Method reload=panel.getClass().getDeclaredMethod("reload");reload.setAccessible(true);reload.invoke(panel);
-            clickRow(visible("预设与导出"));
+            clickRow(visible("预设音效"));
         }catch(Exception e){throw new AssertionError(e);}});instrumentation.waitForIdleSync();
         View decor=activity.getWindow().getDecorView();assertEquals(store.presets().size(),countTag(decor,"preset-card"));
         View card=tag(decor,"preset-card");assertTrue(card.isClickable());assertTrue(card.getHeight()>card.getWidth()*.15);

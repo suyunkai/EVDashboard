@@ -24,10 +24,10 @@ import java.util.*;
 
 public final class MainActivity extends Activity {
     private static final String[][] TITLES = {
-        {"连接 CP", "声音目录", "预设与导出", "自动覆盖", "使用说明"},
+        {"连接 CP", "实际音效", "预设音效", "自动覆盖", "使用说明"},
         {"1 · 识别与备份", "2 · 选择与修改", "3 · 校验与写入", "任务与恢复"}};
     private static final String[][] SUBTITLES = {
-        {"", "分类浏览实际声音", "最多 5 个 · ZIP 备份", "开机与 STR 唤醒", "试听、音量与恢复"},
+        {"", "分类浏览实际声音", "内置预设 · 我的预设 · ZIP", "开机与 STR 唤醒", "试听、音量与恢复"},
         {"先识别，再导出备份", "选择镜像，再生成副本", "保留备份并全量回读", "写后回读与恢复"}};
     private static final int[][] ICONS = {
         {R.drawable.ic_ui_link, R.drawable.ic_ui_audio, R.drawable.ic_ui_lock, R.drawable.ic_ui_save, R.drawable.ic_ui_flask},
@@ -39,7 +39,7 @@ public final class MainActivity extends Activity {
 
     private AppState state;
     private Ui ui;
-    private int page = 1; // Workshop is the first, default tab; audio retains its internal page ID.
+    private int page = 0; // Instrument sounds is the first, default tab (left); the workshop is the second (right).
     private final int[] section = new int[2];
     private final Map<String, String> drafts = new HashMap<>();
 
@@ -85,7 +85,7 @@ public final class MainActivity extends Activity {
         super.onCreate(bundle);
         state = (AppState) getApplication();
         section[0] = SshAccess.trusted(this) ? 1 : 0;
-        if (bundle != null) {page = bundle.getInt("workshopPage", 1); int[] savedSections = bundle.getIntArray("workshopSections"); if (savedSections != null && savedSections.length == 2) System.arraycopy(savedSections, 0, section, 0, 2); Bundle savedDrafts = bundle.getBundle("workshopDrafts"); if (savedDrafts != null) for (String key : savedDrafts.keySet()) drafts.put(key, savedDrafts.getString(key, ""));}
+        if (bundle != null) {page = bundle.getInt("workshopPage", 0); int[] savedSections = bundle.getIntArray("workshopSections"); if (savedSections != null && savedSections.length == 2) System.arraycopy(savedSections, 0, section, 0, 2); Bundle savedDrafts = bundle.getBundle("workshopDrafts"); if (savedDrafts != null) for (String key : savedDrafts.keySet()) drafts.put(key, savedDrafts.getString(key, ""));}
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         if (Build.VERSION.SDK_INT >= 33) registerReceiver(updates, new IntentFilter("com.kooo.evdashboard.STATUS"), Context.RECEIVER_NOT_EXPORTED);
         else registerReceiver(updates, new IntentFilter("com.kooo.evdashboard.STATUS"), getPackageName() + ".INTERNAL", null);
@@ -199,7 +199,7 @@ public final class MainActivity extends Activity {
         seg.setBackground(ui.rect(ui.segment, 32, 0, 0));
         seg.setPadding(ui.px(8), ui.px(8), ui.px(8), ui.px(8));
         for (int display = 0; display < 2; display++) {
-            final int i = 1 - display, p = i;
+            final int i = display, p = i;
             Button b = new I18n.Action(this);
             b.setText(I18n.english(this) ? (i == 1 ? "Workshop" : "Instrument Sounds") : PAGE_NAMES[i]);
             b.setAllCaps(false);

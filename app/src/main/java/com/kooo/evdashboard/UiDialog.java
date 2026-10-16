@@ -21,10 +21,12 @@ final class UiDialog {
     private final Ui ui;
     private final Dialog dialog;
     private final LinearLayout card, body, buttons;
+    private final MaxScroll scroll;
+    private int pinnedCount;
     private final TextView title;
     private boolean compact;
     private int maxWidth = 1500;
-    private Button positive;
+    private Button positive, neutral;
     private Runnable onCancel;
 
     UiDialog(Activity activity, Ui ui, String title) {
@@ -39,7 +41,7 @@ final class UiDialog {
         this.title = t;
         card.addView(t, ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(16)));
         body = ui.vertical();
-        MaxScroll scroll = new MaxScroll(activity, (int) (activity.getResources().getDisplayMetrics().heightPixels * .62f));
+        scroll = new MaxScroll(activity, (int) (activity.getResources().getDisplayMetrics().heightPixels * .62f));
         scroll.addView(body);
         card.addView(scroll, ui.lp(Ui.MATCH, Ui.WRAP));
         buttons = ui.horizontal();
@@ -61,6 +63,18 @@ final class UiDialog {
 
     UiDialog view(View v) {
         body.addView(v, ui.lp(Ui.MATCH, Ui.WRAP));
+        return this;
+    }
+
+    /** A bar that stays above the scrolling body (summary, select-all, ...). */
+    UiDialog pinned(View v) {
+        card.addView(v, 1 + pinnedCount++, ui.lp(Ui.MATCH, Ui.WRAP));
+        return this;
+    }
+
+    /** Share of the screen height the scrolling body may use (default .62). */
+    UiDialog bodyHeight(float fraction) {
+        scroll.max = (int) (activity.getResources().getDisplayMetrics().heightPixels * fraction);
         return this;
     }
 
@@ -94,11 +108,17 @@ final class UiDialog {
     }
 
     UiDialog negative(String label, Runnable action) {add(label, Ui.Look.TINT, action); return this;}
-    UiDialog neutral(String label, Runnable action) {add(label, Ui.Look.TINT, action); return this;}
+    UiDialog neutral(String label, Runnable action) {neutral = add(label, Ui.Look.TINT, action); return this;}
 
     UiDialog positive(String label, Ui.Look look, Runnable action) {
         positive = add(label, look, action);
         return this;
+    }
+
+    void neutralEnabled(boolean on) {
+        if (neutral == null) return;
+        neutral.setEnabled(on);
+        neutral.setAlpha(on ? 1f : .4f);
     }
 
     void positiveEnabled(boolean on) {
@@ -120,7 +140,7 @@ final class UiDialog {
     }
 
     private static final class MaxScroll extends ScrollView {
-        private final int max;
+        int max;
 
         MaxScroll(Activity a, int max) {super(a); this.max = max;}
 

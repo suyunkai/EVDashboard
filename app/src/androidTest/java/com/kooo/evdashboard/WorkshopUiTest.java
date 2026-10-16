@@ -35,14 +35,15 @@ public class WorkshopUiTest {
         java.lang.reflect.Field dialog=uiDialog.getClass().getDeclaredField("dialog");dialog.setAccessible(true);return (Dialog)dialog.get(uiDialog);
     }
     private void clickRow(TextView text){View current=text;while(current!=null&&!current.isClickable())current=current.getParent() instanceof View?(View)current.getParent():null;assertNotNull(current);assertTrue(current.performClick());}
-    @Test public void workshopFirstAndNavigationExplainsNextStep(){
+    @Test public void soundsFirstAndNavigationExplainsNextStep(){
         instrumentation.runOnMainSync(()->{
-            TextView first=visible("仪表工坊"),second=visible("仪表提示音");
+            TextView first=visible("仪表提示音"),second=visible("仪表工坊");
             int[] a=new int[2],b=new int[2];first.getLocationOnScreen(a);second.getLocationOnScreen(b);assertTrue(a[0]<b[0]);
-            visible("识别并导出完整备份");
+            visible("修改 CP IP 地址");
+            second.performClick();visible("识别并导出完整备份");
             clickRow(visible("2 · 选择与修改"));visible("从本机 / U 盘导入镜像");visible("生成新的修改镜像");
             clickRow(visible("3 · 校验与写入"));visible("将所选镜像写入当前 CP 槽位");visible("← 返回第 2 步选镜像");
-            second.performClick();visible("修改 CP IP 地址");
+            first.performClick();visible("修改 CP IP 地址");
         });
     }
     @Test public void permissionEntryTargetsExactAppAndEvcc(){
@@ -106,7 +107,7 @@ public class WorkshopUiTest {
         Instrumentation.ActivityMonitor monitor=new Instrumentation.ActivityMonitor(){@Override public Instrumentation.ActivityResult onStartActivity(Intent intent){external.incrementAndGet();return new Instrumentation.ActivityResult(Activity.RESULT_CANCELED,null);}};
         instrumentation.addMonitor(monitor);
         try{
-            instrumentation.runOnMainSync(()->{clickRow(visible("2 · 选择与修改"));visible("从本机 / U 盘导入镜像").performClick();});
+            instrumentation.runOnMainSync(()->{visible("仪表工坊").performClick();clickRow(visible("2 · 选择与修改"));visible("从本机 / U 盘导入镜像").performClick();});
             Dialog volumes=pickerDialog();assertTrue(volumes.isShowing());
             instrumentation.runOnMainSync(()->{TextView local=find(volumes.getWindow().getDecorView(),"本机存储（当前 Android 用户）");assertNotNull(local);clickRow(local);});
             Dialog folders=pickerDialog();assertTrue(folders.isShowing());

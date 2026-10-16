@@ -1,0 +1,389 @@
+{
+ "format": "instrument-preset",
+ "version": 1,
+ "id": "8bit",
+ "name": "8bit游戏音效",
+ "description": "FC/NES 声卡风格的原创合成：挡位、警报、雷达、低速循环都有对应的复古游戏音效，柔和不刺耳。",
+ "sounds": [
+  {
+   "path": "/usr/avas/sound_type_1/ClassicSound_30W.wav",
+   "category": "低速",
+   "group": "经典风格",
+   "variant": "30W 主轨",
+   "file": "audio/1cc2e05a34b668a28ea51b4fcdab7a290e7011407eac991505eea9950b9359c8.wav",
+   "sha256": "1cc2e05a34b668a28ea51b4fcdab7a290e7011407eac991505eea9950b9359c8",
+   "bytes": 580798,
+   "seconds": 6.05
+  },
+  {
+   "path": "/usr/avas/sound_type_1/ClassicSound_5W.wav",
+   "category": "低速",
+   "group": "经典风格",
+   "variant": "5W 主轨",
+   "file": "audio/3c437e4ecdbf40c6cd8b31dee54d2061b9d50eac037e0da7dba098cd71dcd96b.wav",
+   "sha256": "3c437e4ecdbf40c6cd8b31dee54d2061b9d50eac037e0da7dba098cd71dcd96b",
+   "bytes": 580798,
+   "seconds": 6.05
+  },
+  {
+   "path": "/usr/avas/sound_type_1/bDM_01_01.wav",
+   "category": "低速",
+   "group": "经典风格",
+   "variant": "30W 辅助轨",
+   "file": "audio/840895da4f34712dd2b0e807570eb0970c3457db164541e297222b16cb950f1b.wav",
+   "sha256": "840895da4f34712dd2b0e807570eb0970c3457db164541e297222b16cb950f1b",
+   "bytes": 144044,
+   "seconds": 1.5
+  },
+  {
+   "path": "/usr/avas/sound_type_1/bDM_01_02.wav",
+   "category": "低速",
+   "group": "经典风格",
+   "variant": "5W 辅助轨",
+   "file": "audio/f16deb714f7b419582da07d68eb9a65ce880e8cff08ee498baeb2a86c1de2398.wav",
+   "sha256": "f16deb714f7b419582da07d68eb9a65ce880e8cff08ee498baeb2a86c1de2398",
+   "bytes": 142802,
+   "seconds": 1.487
+  },
+  {
+   "path": "/usr/avas/sound_type_2/bDM_01_01.wav",
+   "category": "低速",
+   "group": "银河音符",
+   "variant": "30W 辅助轨",
+   "file": "audio/840895da4f34712dd2b0e807570eb0970c3457db164541e297222b16cb950f1b.wav",
+   "sha256": "840895da4f34712dd2b0e807570eb0970c3457db164541e297222b16cb950f1b",
+   "bytes": 144044,
+   "seconds": 1.5
+  },
+  {
+   "path": "/usr/avas/sound_type_2/bDM_01_02.wav",
+   "category": "低速",
+   "group": "银河音符",
+   "variant": "5W 辅助轨",
+   "file": "audio/f16deb714f7b419582da07d68eb9a65ce880e8cff08ee498baeb2a86c1de2398.wav",
+   "sha256": "f16deb714f7b419582da07d68eb9a65ce880e8cff08ee498baeb2a86c1de2398",
+   "bytes": 142802,
+   "seconds": 1.487
+  },
+  {
+   "path": "/usr/avas/sound_type_2/yinheyinfu.wav",
+   "category": "低速",
+   "group": "银河音符",
+   "variant": "主轨",
+   "file": "audio/d5446a9a88394411538f8e75c8d7a1bf9b1068afcb699ff0e4c2ae32a3005524.wav",
+   "sha256": "d5446a9a88394411538f8e75c8d7a1bf9b1068afcb699ff0e4c2ae32a3005524",
+   "bytes": 1417890,
+   "seconds": 14.769
+  },
+  {
+   "path": "/usr/avas/sound_type_3/bDM_01_01.wav",
+   "category": "低速",
+   "group": "太空风格",
+   "variant": "30W 辅助轨",
+   "file": "audio/840895da4f34712dd2b0e807570eb0970c3457db164541e297222b16cb950f1b.wav",
+   "sha256": "840895da4f34712dd2b0e807570eb0970c3457db164541e297222b16cb950f1b",
+   "bytes": 144044,
+   "seconds": 1.5
+  },
+  {
+   "path": "/usr/avas/sound_type_3/bDM_01_02.wav",
+   "category": "低速",
+   "group": "太空风格",
+   "variant": "5W 辅助轨",
+   "file": "audio/f16deb714f7b419582da07d68eb9a65ce880e8cff08ee498baeb2a86c1de2398.wav",
+   "sha256": "f16deb714f7b419582da07d68eb9a65ce880e8cff08ee498baeb2a86c1de2398",
+   "bytes": 142802,
+   "seconds": 1.487
+  },
+  {
+   "path": "/usr/avas/sound_type_3/space.wav",
+   "category": "低速",
+   "group": "太空风格",
+   "variant": "主轨",
+   "file": "audio/dafdfd8571e77eb251e582fe63aca573b2f7223dd026af7d712765299ab06f97.wav",
+   "sha256": "dafdfd8571e77eb251e582fe63aca573b2f7223dd026af7d712765299ab06f97",
+   "bytes": 1152044,
+   "seconds": 12.0
+  },
+  {
+   "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_01_1_Fault_Alert_Chime_Single.wav",
+   "category": "警报",
+   "group": "通用故障提示",
+   "variant": "默认",
+   "file": "audio/f75082d6b01ce3920167d7a5c81c929ccd3a379cc34ad4cc03a933e1afe2ceb3.wav",
+   "sha256": "f75082d6b01ce3920167d7a5c81c929ccd3a379cc34ad4cc03a933e1afe2ceb3",
+   "bytes": 134464,
+   "seconds": 0.7
+  },
+  {
+   "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_02_1_Collision_Alert_Chime_Single.wav",
+   "category": "警报",
+   "group": "碰撞警告",
+   "variant": "默认",
+   "file": "audio/9c77d80e929de033c3874b0efb76eecaf5027d7b50976d8a3c798d69abe587a9.wav",
+   "sha256": "9c77d80e929de033c3874b0efb76eecaf5027d7b50976d8a3c798d69abe587a9",
+   "bytes": 287172,
+   "seconds": 1.495
+  },
+  {
+   "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_08_1_Seatbelt_Alert_Chime_Fast_Single.wav",
+   "category": "警报",
+   "group": "安全带提醒",
+   "variant": "快速",
+   "file": "audio/5181cf51355ba7bb91cd836c6e8180a701af70c525ab05d9366b3b2ee28ff61e.wav",
+   "sha256": "5181cf51355ba7bb91cd836c6e8180a701af70c525ab05d9366b3b2ee28ff61e",
+   "bytes": 192924,
+   "seconds": 1.005
+  },
+  {
+   "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_08_1_Seatbelt_Alert_Chime_Slow_Single.wav",
+   "category": "警报",
+   "group": "安全带提醒",
+   "variant": "慢速",
+   "file": "audio/66260b6c6fdce5b2db78a7b6316fc519325bce43773f5c613ed49c22560fa8fb.wav",
+   "sha256": "66260b6c6fdce5b2db78a7b6316fc519325bce43773f5c613ed49c22560fa8fb",
+   "bytes": 288048,
+   "seconds": 1.5
+  },
+  {
+   "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_09_1_FRadar_Slow.wav",
+   "category": "雷达",
+   "group": "前雷达",
+   "variant": "慢速",
+   "file": "audio/f047d000c43f47c792414cc9dba6ebc8506cc4fbe8559b6a9b5afd1a66dbbc49.wav",
+   "sha256": "f047d000c43f47c792414cc9dba6ebc8506cc4fbe8559b6a9b5afd1a66dbbc49",
+   "bytes": 96048,
+   "seconds": 0.5
+  },
+  {
+   "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_09_2_FRadar_Normal.wav",
+   "category": "雷达",
+   "group": "前雷达",
+   "variant": "常规",
+   "file": "audio/864403e975ee4a21577d2e90094c0e65df6826db19ec72f0085949c31893095e.wav",
+   "sha256": "864403e975ee4a21577d2e90094c0e65df6826db19ec72f0085949c31893095e",
+   "bytes": 48044,
+   "seconds": 0.25
+  },
+  {
+   "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_09_3_FRadar_Continue.wav",
+   "category": "雷达",
+   "group": "前雷达",
+   "variant": "持续",
+   "file": "audio/4f12ea6c308a351f1e14ec0f1e18f9cb021ea4bbb3e20f23bc791c5115403a0a.wav",
+   "sha256": "4f12ea6c308a351f1e14ec0f1e18f9cb021ea4bbb3e20f23bc791c5115403a0a",
+   "bytes": 192044,
+   "seconds": 1.0
+  },
+  {
+   "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_09_4_RRadar_Slow.wav",
+   "category": "雷达",
+   "group": "后雷达",
+   "variant": "慢速",
+   "file": "audio/f047d000c43f47c792414cc9dba6ebc8506cc4fbe8559b6a9b5afd1a66dbbc49.wav",
+   "sha256": "f047d000c43f47c792414cc9dba6ebc8506cc4fbe8559b6a9b5afd1a66dbbc49",
+   "bytes": 96048,
+   "seconds": 0.5
+  },
+  {
+   "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_09_5_RRadar_Normal.wav",
+   "category": "雷达",
+   "group": "后雷达",
+   "variant": "常规",
+   "file": "audio/864403e975ee4a21577d2e90094c0e65df6826db19ec72f0085949c31893095e.wav",
+   "sha256": "864403e975ee4a21577d2e90094c0e65df6826db19ec72f0085949c31893095e",
+   "bytes": 48044,
+   "seconds": 0.25
+  },
+  {
+   "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_09_6_RRadar_Continue.wav",
+   "category": "雷达",
+   "group": "后雷达",
+   "variant": "持续",
+   "file": "audio/564cb7d17050aa3756e88b1513a786cb79fd8b919064914367d9d5d79c601d66.wav",
+   "sha256": "564cb7d17050aa3756e88b1513a786cb79fd8b919064914367d9d5d79c601d66",
+   "bytes": 192044,
+   "seconds": 1.0
+  },
+  {
+   "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_10_1_DoorOpen_Alert_Chime_Single.wav",
+   "category": "警报",
+   "group": "车门未关提示",
+   "variant": "默认",
+   "file": "audio/3a73eb1945d9151bd0df79907d34a5e17da8c6cf4f09029660b98061b4f3fb55.wav",
+   "sha256": "3a73eb1945d9151bd0df79907d34a5e17da8c6cf4f09029660b98061b4f3fb55",
+   "bytes": 287956,
+   "seconds": 1.5
+  },
+  {
+   "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_11_1_Speed_Over_Alert_Chime_Single.wav",
+   "category": "警报",
+   "group": "超速提示",
+   "variant": "默认",
+   "file": "audio/ccc20121b8c5f3270b96ce42ae3e69f423732b00d7e8dceb7b79cf3e73b03452.wav",
+   "sha256": "ccc20121b8c5f3270b96ce42ae3e69f423732b00d7e8dceb7b79cf3e73b03452",
+   "bytes": 153644,
+   "seconds": 0.8
+  },
+  {
+   "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_12_1_Turn_light_Alert_Chime_Tick_Single.wav",
+   "category": "常用",
+   "group": "转向提示",
+   "variant": "Tick",
+   "file": "audio/0543f234753539441d8642390af5941c15c63ca106888495203b00c7607c9988.wav",
+   "sha256": "0543f234753539441d8642390af5941c15c63ca106888495203b00c7607c9988",
+   "bytes": 19256,
+   "seconds": 0.1
+  },
+  {
+   "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_12_1_Turn_light_Alert_Chime_Tock_Single.wav",
+   "category": "常用",
+   "group": "转向提示",
+   "variant": "Tock",
+   "file": "audio/09c6ab82d513e8cef1306760c6ae5f3d183e2bf6a6a0c242fd8dc7aafb569e60.wav",
+   "sha256": "09c6ab82d513e8cef1306760c6ae5f3d183e2bf6a6a0c242fd8dc7aafb569e60",
+   "bytes": 19256,
+   "seconds": 0.1
+  },
+  {
+   "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_Drive_Gear_Activation_Single.wav",
+   "category": "常用",
+   "group": "D 挡提示",
+   "variant": "默认",
+   "file": "audio/f36f403b212ba33cc9d375d8d19a63515e16e56ad059365654663588b1c5e196.wav",
+   "sha256": "f36f403b212ba33cc9d375d8d19a63515e16e56ad059365654663588b1c5e196",
+   "bytes": 150576,
+   "seconds": 0.784
+  },
+  {
+   "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_Function_Enabled_Failed_Single.wav",
+   "category": "常用",
+   "group": "通用功能启用失败",
+   "variant": "默认",
+   "file": "audio/247a9bf6a744151eee8d7d350199e0534815b931eb1f8b3b9626caf6e4c7dae5.wav",
+   "sha256": "247a9bf6a744151eee8d7d350199e0534815b931eb1f8b3b9626caf6e4c7dae5",
+   "bytes": 135072,
+   "seconds": 0.703
+  },
+  {
+   "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_Function_Enabled_Successful_Single.wav",
+   "category": "常用",
+   "group": "通用功能启用成功",
+   "variant": "默认",
+   "file": "audio/2bb42599336b31873545c62a1af9cdefbdeef936344a8bccabf33ebba2776d8b.wav",
+   "sha256": "2bb42599336b31873545c62a1af9cdefbdeef936344a8bccabf33ebba2776d8b",
+   "bytes": 153660,
+   "seconds": 0.8
+  },
+  {
+   "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_Function_Exited_Single.wav",
+   "category": "常用",
+   "group": "通用功能退出",
+   "variant": "默认",
+   "file": "audio/52c92ba342ac221d1e7d4549cc5693255c857f20fbef56ff04df705f351c19c6.wav",
+   "sha256": "52c92ba342ac221d1e7d4549cc5693255c857f20fbef56ff04df705f351c19c6",
+   "bytes": 172968,
+   "seconds": 0.901
+  },
+  {
+   "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_Level_One_Alert_Chime_Single.wav",
+   "category": "警报",
+   "group": "一级通用提醒",
+   "variant": "默认",
+   "file": "audio/0459b42b3cc4e152bdd96feec7385968d2af942fa326b13f7012d56abfd9a474.wav",
+   "sha256": "0459b42b3cc4e152bdd96feec7385968d2af942fa326b13f7012d56abfd9a474",
+   "bytes": 192044,
+   "seconds": 1.0
+  },
+  {
+   "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_Level_Three_Alert_Chime_Single.wav",
+   "category": "警报",
+   "group": "三级通用提醒",
+   "variant": "默认",
+   "file": "audio/68920afa0030987db72ce5c3deadfe9a3df03435f32289585bf9d9a766c8ee1f.wav",
+   "sha256": "68920afa0030987db72ce5c3deadfe9a3df03435f32289585bf9d9a766c8ee1f",
+   "bytes": 287168,
+   "seconds": 1.495
+  },
+  {
+   "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_Level_Two_Alert_Chime_Single.wav",
+   "category": "警报",
+   "group": "二级通用提醒",
+   "variant": "默认",
+   "file": "audio/4f8c7142e0169b03b72f22f26489cf0abe912304a3bd2dbe3f17ad789f0bf732.wav",
+   "sha256": "4f8c7142e0169b03b72f22f26489cf0abe912304a3bd2dbe3f17ad789f0bf732",
+   "bytes": 288044,
+   "seconds": 1.5
+  },
+  {
+   "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_Parking_Gear_Activation_Single.wav",
+   "category": "常用",
+   "group": "P 挡提示",
+   "variant": "默认",
+   "file": "audio/91b128f9fb3b5e8d2ba0f8f27288cd07d728e4574a5ccee59f251859a0c2c757.wav",
+   "sha256": "91b128f9fb3b5e8d2ba0f8f27288cd07d728e4574a5ccee59f251859a0c2c757",
+   "bytes": 273748,
+   "seconds": 1.426
+  },
+  {
+   "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_Reverse_Gear_Activation_Single.wav",
+   "category": "常用",
+   "group": "R 挡提示",
+   "variant": "默认",
+   "file": "audio/e15a1226fd48fe6a637916bb888854ac08c8ea43e5df033da96d3687e8d01c90.wav",
+   "sha256": "e15a1226fd48fe6a637916bb888854ac08c8ea43e5df033da96d3687e8d01c90",
+   "bytes": 135212,
+   "seconds": 0.704
+  },
+  {
+   "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_Traffic_Light_Warning_Single.wav",
+   "category": "常用",
+   "group": "交通灯提醒",
+   "variant": "默认",
+   "file": "audio/0ab32407f875503ccfb474e0b154b4ce60cf4925f9397487b04861537a20410f.wav",
+   "sha256": "0ab32407f875503ccfb474e0b154b4ce60cf4925f9397487b04861537a20410f",
+   "bytes": 652852,
+   "seconds": 3.4
+  },
+  {
+   "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_Usagemode_Driving_Welcome.wav",
+   "category": "常用",
+   "group": "驾驶模式欢迎音",
+   "variant": "默认",
+   "file": "audio/5a74ec0a88239bac8c9edc319ad166666d76af87143eeeb346fbba2c916c1b75.wav",
+   "sha256": "5a74ec0a88239bac8c9edc319ad166666d76af87143eeeb346fbba2c916c1b75",
+   "bytes": 652852,
+   "seconds": 3.4
+  },
+  {
+   "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_Vehicle_Charging_Single-13dB.wav",
+   "category": "常用",
+   "group": "充电提示",
+   "variant": "轻音版",
+   "file": "audio/42122cd03baba007376079bf7106de8e336ba7737d5a100a4956708710856bdf.wav",
+   "sha256": "42122cd03baba007376079bf7106de8e336ba7737d5a100a4956708710856bdf",
+   "bytes": 153920,
+   "seconds": 1.603
+  },
+  {
+   "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_Vehicle_Locked_Single-13dB.wav",
+   "category": "常用",
+   "group": "锁车提示",
+   "variant": "轻音版",
+   "file": "audio/c16a89a33106b8740b84bf677422225f5bdf19edcc751045a5241f11c34c9e65.wav",
+   "sha256": "c16a89a33106b8740b84bf677422225f5bdf19edcc751045a5241f11c34c9e65",
+   "bytes": 250744,
+   "seconds": 1.306
+  },
+  {
+   "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_Vehicle_Locked_Single.wav",
+   "category": "常用",
+   "group": "锁车提示",
+   "variant": "普通版",
+   "file": "audio/13add078b00f566dc52de79e8dc7d07b49642089318579e221700654d2d53b32.wav",
+   "sha256": "13add078b00f566dc52de79e8dc7d07b49642089318579e221700654d2d53b32",
+   "bytes": 250744,
+   "seconds": 1.306
+  }
+ ]
+}

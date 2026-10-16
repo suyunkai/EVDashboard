@@ -34,3 +34,7 @@ vendor/*/*/*.erofs
 !/signing/aosp-testkey.p12
 .env
 .env.*
+
+# Game audio supplied for personal builds (荒野之息 preset). It is bundled into locally built APKs but kept out of git;
+# regenerate with: python3 -I tools/build-presets.py
+/app/src/main/assets/presets/botw/

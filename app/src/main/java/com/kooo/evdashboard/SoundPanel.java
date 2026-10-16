@@ -19,7 +19,8 @@ final class SoundPanel implements AutoCloseable {
     private final Supplier<String> password;
     private final SoundCatalog catalog;
     private final SoundStore store;
-    private final LinearLayout directory, grid, categoryBar, presetList;
+    private final BuiltinPresets builtin;
+    private final LinearLayout directory, grid, categoryBar, presetList, builtinList;
     private final TextView summary, presetCount;
     private TextView automaticStatus;
     private Ui.SwitchRow automaticRow;
@@ -35,8 +36,8 @@ final class SoundPanel implements AutoCloseable {
 
     SoundPanel(MainActivity activity, Ui ui, AppState state, Supplier<String> password) throws Exception {
         this.activity = activity; this.ui = ui; this.state = state; this.password = password;
-        catalog = AudioEngine.catalog(activity); store = AudioEngine.store(activity, catalog);
-        directory = shell("声音目录");
+        catalog = AudioEngine.catalog(activity); store = AudioEngine.store(activity, catalog); builtin = new BuiltinPresets(activity, catalog);
+        directory = shell("实际音效");
         LinearLayout head = ui.horizontal(); summary = ui.text("先连接 CP，读取当前实际提示音", 25, ui.muted, false);
         head.addView(summary, ui.lp(0, Ui.WRAP, 1));
         head.addView(ui.button("读取 / 刷新", Ui.Look.TINT, v -> refresh())); directory.addView(head);
@@ -46,7 +47,12 @@ final class SoundPanel implements AutoCloseable {
         grid = ui.vertical(); soundScroll = new ScrollView(activity); soundScroll.setTag("sound-scroll");
         soundScroll.addView(grid); soundScroll.setFillViewport(false); soundScroll.setScrollbarFadingEnabled(false);
         directory.addView(soundScroll, ui.lp(Ui.MATCH, 0, 1));
-        presetsView = shell("预设与导出");
+        presetsView = shell("预设音效");
+        presetsView.addView(ui.text("内置预设", 32, ui.ink, true), ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(6)));
+        presetsView.addView(ui.text("选择一套内置音效，勾选需要的声音并逐个试听，点击“应用”写入“实际音效”，再按需调整每个声音的音量。", 24, ui.muted, false), ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(14)));
+        builtinList = ui.vertical(); presetsView.addView(builtinList, ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(10)));
+        View divider = new View(activity); divider.setBackgroundColor(ui.line); presetsView.addView(divider, ui.lp(Ui.MATCH, ui.px(2), 0, 0, 0, ui.px(24)));
+        presetsView.addView(ui.text("我的预设", 32, ui.ink, true), ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(6)));
         presetCount = ui.text("", 26, ui.muted, false); presetsView.addView(presetCount);
         LinearLayout actions = buttonRow(smallButton("保存预设", Ui.Look.PRIMARY, v -> namePreset()),
             smallButton("导入 ZIP", Ui.Look.TINT, v -> importZip()), smallButton("导出 ZIP", Ui.Look.TINT, v -> exportZip()));
@@ -75,28 +81,34 @@ final class SoundPanel implements AutoCloseable {
             if (enabled) AutoApplyService.start(activity, "ENABLED"); else AutoApplyService.stop(activity);
         });
         root.addView(automatic.view);
-        root.addView(ui.text("启用后监听开机、用户切换和 STR 唤醒。CP 尚未就绪会等待重连，超时后仍定期检查；仅在当前资源与配置不一致时恢复。SSH 密钥变化无需确认，音效应用不再弹出驻车确认。", 28, ui.muted, false), ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(22), 0, ui.px(16)));
-        automaticStatus = ui.text(preferences().getString("startupStatus", "等待开机或唤醒事件"), 25, ui.muted, false);
-        automaticStatus.setTag("automatic-startup-status"); root.addView(automaticStatus, ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(16)));
-        root.addView(ui.text("请先打开应用一次并允许后台运行。亮屏时每分钟核对配置，系统定期任务负责补启监听服务；强制停止后仍需重新打开应用。休眠时不主动唤醒车机，空闲时不持有唤醒锁。", 25, ui.muted, false), ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(20)));
-        root.addView(ui.button("后台运行设置", Ui.Look.TINT, v -> {
-            try {activity.startActivity(new android.content.Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));}
-            catch (RuntimeException error) {activity.error("此系统未提供后台运行设置入口，请在系统设置中允许后台运行");}
-        }), ui.lp(Ui.WRAP, ui.px(86), 0, 0, 0, ui.px(14)));
-        root.addView(ui.button("立即应用全部配置", Ui.Look.PRIMARY, v -> applyAll()));
-        root.addView(ui.button("停止下次自动覆盖", Ui.Look.TINT, v -> {automatic.toggle.setChecked(false); state.report("已关闭下次启动自动覆盖，当前 CP 声音保持现状。");}), ui.lp(Ui.WRAP, ui.px(96), 0, ui.px(18), 0, 0));
+        LinearLayout notes = ui.vertical(); notes.setPadding(ui.px(28), ui.px(22), ui.px(28), ui.px(22)); notes.setBackground(ui.rect(ui.surface2, 24, ui.line, 2));
+        notes.addView(ui.text("启用后监听开机、用户切换和 STR 唤醒。CP 尚未就绪会等待重连，超时后仍定期检查；仅在当前资源与配置不一致时恢复。SSH 密钥变化无需确认，音效应用不再弹出驻车确认。", 26, ui.ink, false));
+        automaticStatus = ui.text(preferences().getString("startupStatus", "等待开机或唤醒事件"), 25, ui.accent, true);
+        automaticStatus.setTag("automatic-startup-status"); notes.addView(automaticStatus, ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(14), 0, ui.px(14)));
+        notes.addView(ui.text("请先打开应用一次并允许后台运行。亮屏时每分钟核对配置，系统定期任务负责补启监听服务；强制停止后仍需重新打开应用。休眠时不主动唤醒车机，空闲时不持有唤醒锁。", 24, ui.muted, false));
+        root.addView(notes, ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(18), 0, ui.px(22)));
+        root.addView(buttonRow(
+            smallButton("立即应用全部配置", Ui.Look.PRIMARY, v -> applyAll()),
+            smallButton("停止下次自动覆盖", Ui.Look.TINT, v -> {automatic.toggle.setChecked(false); state.report("已关闭下次启动自动覆盖，当前 CP 声音保持现状。");}),
+            smallButton("后台运行设置", Ui.Look.TINT, v -> {
+                try {activity.startActivity(new android.content.Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));}
+                catch (RuntimeException error) {activity.error("此系统未提供后台运行设置入口，请在系统设置中允许后台运行");}
+            })));
         return root;
     }
     View help() {
         LinearLayout root = shell("声音与恢复说明");
         ScrollView scroll = new ScrollView(activity); LinearLayout content = ui.vertical(); scroll.addView(content); root.addView(scroll, ui.lp(Ui.MATCH, 0, 1));
-        content.addView(ui.text("点击卡片管理声音", 34, ui.ink, true));
+        content.addView(ui.text("点击卡片管理声音", 34, ui.ink, true), ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(8)));
         content.addView(ui.text("选择分类后上下滑动查看全部声音。Tick/Tock、雷达快慢、普通/轻音等关联素材在同一张卡片中选择。试听使用 Android 媒体音频输出，短音会缓冲后重复播放。", 28, ui.muted, false));
+        content.addView(ui.text("内置预设", 34, ui.ink, true), ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(24), 0, ui.px(8)));
+        content.addView(ui.text("在“预设音效”里选择内置音效，按分类勾选要使用的声音，可全选、全不选并逐个试听。点击“应用”只更新本机的“实际音效”配置（每个声音的音量重置为 100%），随后可在声音卡片里单独调音量；“应用并写入 CP”会同时切换车机。未勾选的声音保持原有配置。", 28, ui.muted, false));
         content.addView(ui.text("文件替换与音量分开保存", 34, ui.ink, true), ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(24), 0, ui.px(8)));
         content.addView(ui.text("音量 0% 为静音，100% 为所选源文件，最高 200%（约 +6 dB），大音量带限幅。每次调音生成独立音频，不修改原声或替换源。可单独取消替换或恢复音量。", 28, ui.muted, false));
         content.addView(ui.text("同一素材可能服务多个提醒", 34, ui.ink, true), ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(24), 0, ui.px(8)));
         content.addView(ui.text("共用文件的提醒会一起变化。低速提示音按风格及主轨/辅助轨管理，前进与倒车可能共用；素材试听不等于随车速变化的混音。调用未确认的参考/诊断资源支持试听和导出。", 28, ui.muted, false));
-        content.addView(ui.text("保存配置后点击“应用”才切换 CP；导入和载入预设也先保存在本机。若显示待应用，请重新应用。CP 切换失败会尝试恢复上一组覆盖，任务状态未确认时请查看记录，避免重复操作。", 28, ui.muted, false), ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(24), 0, 0));
+        content.addView(ui.text("应用后才会切换 CP", 34, ui.ink, true), ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(24), 0, ui.px(8)));
+        content.addView(ui.text("保存配置后点击“应用”才切换 CP；导入和载入预设也先保存在本机。若显示待应用，请重新应用。CP 切换失败会尝试恢复上一组覆盖，任务状态未确认时请查看记录，避免重复操作。", 28, ui.muted, false));
         return root;
     }
     void onVisible() {
@@ -112,7 +124,7 @@ final class SoundPanel implements AutoCloseable {
         if (automaticRow != null) automaticRow.toggle.setChecked(preferences().getBoolean("soundAutoApply", false));
         if (automaticStatus != null) automaticStatus.setText(I18n.text(activity, preferences().getString("startupStatus", "等待开机或唤醒事件")));
         try {
-            entries = store.entries(); rules = store.rules(); cards(); presetCards();
+            entries = store.entries(); rules = store.rules(); cards(); presetCards(); builtinCards();
             if (!state.busy.get() && reopenEditor != null) {
                 Runnable reopen = reopenEditor; reopenEditor = null;
                 if (directory.isShown()) reopen.run();
@@ -140,8 +152,23 @@ final class SoundPanel implements AutoCloseable {
                 }
                 grid.addView(row, ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(16)));
             }
-            if (names.isEmpty()) grid.addView(ui.text(entries.isEmpty() ? "读取后将自动按实际资源映射为声音卡片" : "当前 CP 没有此分类的声音", 30, ui.muted, false));
+            if (names.isEmpty()) grid.addView(emptyState());
         } catch (Exception e) {activity.error(e.getMessage());}
+    }
+    private View emptyState() {
+        boolean unread = entries.isEmpty();
+        LinearLayout box = ui.vertical(); box.setGravity(Gravity.CENTER_HORIZONTAL); box.setPadding(ui.px(40), ui.px(72), ui.px(40), ui.px(72));
+        box.setBackground(ui.rect(ui.surface2, 28, ui.line, 2));
+        FrameLayout tile = new FrameLayout(activity); tile.setBackground(ui.rect(ui.accentTint, 26, 0, 0));
+        tile.addView(ui.icon(R.drawable.ic_ui_audio, ui.accent, 52), new FrameLayout.LayoutParams(ui.px(52), ui.px(52), Gravity.CENTER));
+        box.addView(tile, ui.lp(ui.px(104), ui.px(104), 0, 0, 0, ui.px(24)));
+        TextView title = ui.text(unread ? "尚未读取实际提示音" : "当前 CP 没有此分类的声音", 34, ui.ink, true); title.setGravity(Gravity.CENTER); box.addView(title);
+        if (unread) {
+            TextView hint = ui.text("读取后将自动按实际资源映射为声音卡片", 26, ui.muted, false); hint.setGravity(Gravity.CENTER);
+            box.addView(hint, ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(10), 0, 0));
+            box.addView(ui.button("读取实际提示音", Ui.Look.PRIMARY, v -> refresh()), ui.lp(Ui.WRAP, ui.px(96), 0, ui.px(30), 0, 0));
+        }
+        return box;
     }
     private TextView badge(String label, int color, int fill) {
         TextView t = ui.text(label, 21, color, true); t.setGravity(Gravity.CENTER); t.setSingleLine();
@@ -368,6 +395,164 @@ final class SoundPanel implements AutoCloseable {
             }
             presetList.addView(row, ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(18)));
         }
+    }
+    private void builtinCards() {
+        builtinList.removeAllViews();
+        List<SoundPreset> presets = builtin.list();
+        if (presets.isEmpty()) {builtinList.addView(ui.text("此安装包没有内置预设", 26, ui.muted, false)); return;}
+        int columns = ui.compact ? 1 : 2;
+        for (int start = 0; start < presets.size(); start += columns) {
+            LinearLayout row = ui.horizontal(); row.setBaselineAligned(false);
+            for (int c = 0; c < columns; c++) {
+                LinearLayout.LayoutParams lp = ui.lp(0, Ui.MATCH, 1); if (c > 0) lp.leftMargin = ui.px(18);
+                if (start + c >= presets.size()) {row.addView(new View(activity), lp); continue;}
+                SoundPreset preset = presets.get(start + c);
+                LinearLayout card = ui.vertical(); card.setTag("builtin-preset-card");
+                card.setPadding(ui.px(28), ui.px(26), ui.px(28), ui.px(24));
+                card.setBackground(ui.interactive(ui.surface2, 28, ui.mix(ui.line, ui.accent, .35f))); card.setClickable(true); card.setFocusable(true);
+                LinearLayout heading = ui.horizontal(); heading.setGravity(Gravity.CENTER_VERTICAL);
+                FrameLayout tile = new FrameLayout(activity); tile.setBackground(ui.rect(ui.accentTint, 18, 0, 0));
+                tile.addView(ui.icon(R.drawable.ic_ui_audio, ui.accent, 36), new FrameLayout.LayoutParams(ui.px(36), ui.px(36), Gravity.CENTER));
+                heading.addView(tile, ui.lp(ui.px(68), ui.px(68), 0, 0, ui.px(18), 0));
+                LinearLayout names = ui.vertical();
+                TextView name = ui.text(preset.name, 36, ui.ink, true); name.setSingleLine(); name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                names.addView(name);
+                names.addView(ui.text(preset.items().size() + " 个声音 · " + preset.categories().size() + " 个分类", 23, ui.muted, false), ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(2), 0, 0));
+                heading.addView(names, ui.lp(0, Ui.WRAP, 1)); card.addView(heading);
+                TextView description = ui.text(preset.description, 24, ui.muted, false); description.setMinLines(3); description.setMaxLines(3); description.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                card.addView(description, ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(18), 0, ui.px(16)));
+                LinearLayout chips = ui.horizontal();
+                for (String category : preset.categories()) chips.addView(badge(category + " " + preset.inCategory(category).size(), ui.accent, ui.accentTint), ui.lp(Ui.WRAP, ui.px(36), 0, 0, ui.px(10), 0));
+                card.addView(chips, ui.lp(Ui.MATCH, Ui.WRAP));
+                LinearLayout action = ui.horizontal(); action.setGravity(Gravity.CENTER_VERTICAL);
+                action.addView(ui.text("选择并应用", 26, ui.accent, true), ui.lp(0, Ui.WRAP, 1)); action.addView(ui.text("›", 34, ui.accent, true));
+                card.addView(action, ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(22), 0, 0));
+                card.setContentDescription(I18n.text(activity, "内置预设 " + preset.name + "，" + preset.items().size() + " 个声音，点击选择并应用"));
+                card.setOnClickListener(v -> showBuiltin(preset)); row.addView(card, lp);
+            }
+            builtinList.addView(row, ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(16)));
+        }
+    }
+    /** Sounds as selectable cards, grouped by category, with per-sound preview; Apply writes the ticked sounds into the actual-sound configuration. */
+    private void showBuiltin(SoundPreset preset) {
+        if (state.busy.get()) {activity.error("请等待任务完成后选择内置预设"); return;}
+        try {
+            Map<String, SoundStore.Entry> usable = new HashMap<>();
+            for (SoundStore.Entry e : entries) if (editable(e)) usable.put(e.path, e);
+            Set<String> chosen = new LinkedHashSet<>();
+            for (SoundPreset.Item item : preset.items()) if (usable.containsKey(item.path)) chosen.add(item.path);
+            UiDialog dialog = new UiDialog(activity, ui, preset.name).compact(1780).bodyHeight(.66f).onDismiss(activity::stopPreview);
+            boolean read = !entries.isEmpty();
+            dialog.pinned(ui.text(preset.description, 26, ui.ink, false));
+            if (!read) dialog.pinned(ui.text("尚未读取 CP 实际提示音：现在可以试听，读取后才能勾选并应用。", 26, ui.warn, true));
+            else if (usable.size() < preset.items().size()) dialog.pinned(ui.text("灰色的声音在当前 CP 上不可用，不会应用。", 23, ui.muted, false));
+            TextView summary = ui.text("", 28, ui.ink, true);
+            Button all = smallButton("全选", Ui.Look.TINT, null), none = smallButton("全不选", Ui.Look.TINT, null);
+            LinearLayout bar = ui.horizontal(); bar.setGravity(Gravity.CENTER_VERTICAL); bar.setPadding(0, ui.px(6), 0, ui.px(6));
+            bar.addView(summary, ui.lp(0, Ui.WRAP, 1)); bar.addView(all, ui.lp(Ui.WRAP, actionHeight())); bar.addView(none, ui.lp(Ui.WRAP, actionHeight(), ui.px(12), 0, 0, 0));
+            if (!read) {all.setVisibility(View.GONE); none.setVisibility(View.GONE);}
+            bar.setPadding(0, ui.px(12), 0, ui.px(6)); dialog.pinned(bar);
+            Map<String, Ui.Toggle> boxes = new LinkedHashMap<>(), categoryBoxes = new LinkedHashMap<>();
+            Map<String, View> soundCards = new HashMap<>(); Map<String, TextView> categoryCounts = new HashMap<>();
+            List<Button> playButtons = new ArrayList<>(); Button[] playing = {null}; boolean[] syncing = {false};
+            Runnable[] sync = new Runnable[1];
+            Runnable resetPreview = () -> {playing[0] = null; for (Button b : playButtons) b.setText("试听");};
+            int columns = ui.compact ? 2 : 3;
+            for (String category : preset.categories()) {
+                List<SoundPreset.Item> inCategory = preset.inCategory(category);
+                LinearLayout head = ui.horizontal(); head.setGravity(Gravity.CENTER_VERTICAL); head.setPadding(ui.px(4), ui.px(22), ui.px(4), ui.px(12));
+                Ui.Toggle categoryBox = new Ui.Toggle(ui, true); categoryBoxes.put(category, categoryBox);
+                if (!read) categoryBox.setVisibility(View.GONE);
+                head.addView(categoryBox, ui.lp(Ui.WRAP, Ui.WRAP, 0, 0, ui.px(16), 0));
+                head.addView(ui.text(category, 32, ui.ink, true), ui.lp(Ui.WRAP, Ui.WRAP, 0, 0, ui.px(14), 0));
+                TextView count = ui.text("", 24, ui.muted, false); categoryCounts.put(category, count);
+                head.addView(count, ui.lp(0, Ui.WRAP, 1));
+                if (read) {head.setClickable(true); head.setOnClickListener(v -> categoryBox.toggle());}
+                categoryBox.setOnCheckedChangeListener((b, on) -> {
+                    if (syncing[0]) return;
+                    for (SoundPreset.Item item : inCategory) if (usable.containsKey(item.path)) {if (on) chosen.add(item.path); else chosen.remove(item.path);}
+                    sync[0].run();
+                });
+                dialog.view(head);
+                for (int start = 0; start < inCategory.size(); start += columns) {
+                    LinearLayout row = ui.horizontal(); row.setBaselineAligned(false); row.setPadding(0, 0, 0, ui.px(16));
+                    for (int c = 0; c < columns; c++) {
+                        LinearLayout.LayoutParams lp = ui.lp(0, Ui.MATCH, 1); if (c < columns - 1) lp.rightMargin = ui.px(16);
+                        if (start + c >= inCategory.size()) {row.addView(new View(activity), lp); continue;}
+                        SoundPreset.Item item = inCategory.get(start + c); boolean available = usable.containsKey(item.path);
+                        LinearLayout card = ui.vertical(); card.setTag("builtin-sound-card"); card.setPadding(ui.px(20), ui.px(18), ui.px(20), ui.px(16));
+                        soundCards.put(item.path, card);
+                        LinearLayout top = ui.horizontal(); top.setGravity(Gravity.CENTER_VERTICAL);
+                        Ui.Toggle box = new Ui.Toggle(ui, true); boxes.put(item.path, box); box.setEnabled(available); if (!read) box.setVisibility(View.GONE);
+                        top.addView(box, ui.lp(Ui.WRAP, Ui.WRAP, 0, 0, read ? ui.px(16) : 0, 0));
+                        TextView title = ui.text(item.group, 28, available ? ui.ink : ui.muted, true); title.setMaxLines(2); title.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                        top.addView(title, ui.lp(0, Ui.WRAP, 1)); card.addView(top);
+                        LinearLayout tags = ui.horizontal();
+                        if (!item.variant.equals("默认")) tags.addView(badge(item.variant, ui.accent, ui.accentTint), ui.lp(Ui.WRAP, ui.px(32), 0, 0, ui.px(8), 0));
+                        tags.addView(badge(String.format(Locale.ROOT, "%.1f 秒", item.seconds), ui.muted, ui.surface), ui.lp(Ui.WRAP, ui.px(32), 0, 0, ui.px(8), 0));
+                        if (read && !available) tags.addView(badge("当前 CP 不可用", ui.warn, ui.warnBg), ui.lp(Ui.WRAP, ui.px(32)));
+                        card.addView(tags, ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(12), 0, ui.px(18)));
+                        card.addView(new View(activity), ui.lp(Ui.MATCH, 0, 1));
+                        Button play = smallButton("试听", Ui.Look.TINT, null); play.setSoundEffectsEnabled(false); playButtons.add(play);
+                        play.setOnClickListener(v -> {
+                            if (playing[0] == play) {activity.stopPreview(); return;}
+                            activity.stopPreview(); playing[0] = play; play.setText("停止");
+                            try {
+                                File file = new File(activity.getCacheDir(), "builtin-preview.wav");
+                                Files.write(file.toPath(), builtin.audio(preset, item)); activity.preview(file, resetPreview);
+                            } catch (Exception error) {resetPreview.run(); activity.error(error.getMessage());}
+                        });
+                        card.addView(play, ui.lp(Ui.MATCH, actionHeight()));
+                        card.setAlpha(!read || available ? 1f : .55f);
+                        if (available) {card.setClickable(true); card.setOnClickListener(v -> box.toggle());}
+                        box.setOnCheckedChangeListener((b, on) -> {if (syncing[0]) return; if (on) chosen.add(item.path); else chosen.remove(item.path); sync[0].run();});
+                        card.setContentDescription(I18n.text(activity, item.label() + String.format(Locale.ROOT, "，%.1f 秒", item.seconds)));
+                        row.addView(card, lp);
+                    }
+                    dialog.view(row);
+                }
+            }
+            all.setOnClickListener(v -> {chosen.clear(); chosen.addAll(usable.keySet()); sync[0].run();});
+            none.setOnClickListener(v -> {chosen.clear(); sync[0].run();});
+            dialog.negative("取消", null)
+                .neutral("应用并写入 CP", () -> applyBuiltin(preset, chosen, true))
+                .positive("应用", Ui.Look.PRIMARY, () -> applyBuiltin(preset, chosen, false));
+            sync[0] = () -> {
+                syncing[0] = true;
+                for (Map.Entry<String, Ui.Toggle> b : boxes.entrySet()) b.getValue().setChecked(chosen.contains(b.getKey()));
+                for (Map.Entry<String, View> card : soundCards.entrySet()) {
+                    boolean on = chosen.contains(card.getKey());
+                    card.getValue().setBackground(ui.interactive(on ? ui.mix(ui.surface2, ui.accent, .12f) : ui.surface2, 24, on ? ui.accent : ui.line));
+                }
+                for (Map.Entry<String, Ui.Toggle> c : categoryBoxes.entrySet()) {
+                    int available = 0, on = 0;
+                    for (SoundPreset.Item item : preset.inCategory(c.getKey())) if (usable.containsKey(item.path)) {available++; if (chosen.contains(item.path)) on++;}
+                    c.getValue().setChecked(available > 0 && on == available); c.getValue().setEnabled(available > 0); c.getValue().setAlpha(available > 0 ? 1f : .35f);
+                    categoryCounts.get(c.getKey()).setText(read ? "已选 " + on + " / " + preset.inCategory(c.getKey()).size() : "");
+                }
+                syncing[0] = false;
+                summary.setText(read ? "已选 " + chosen.size() + " / " + usable.size() : preset.items().size() + " 个声音可试听");
+                dialog.positiveEnabled(!chosen.isEmpty()); dialog.neutralEnabled(!chosen.isEmpty());
+            };
+            sync[0].run(); dialog.show();
+        } catch (Exception e) {activity.error(e.getMessage());}
+    }
+    private void applyBuiltin(SoundPreset preset, Set<String> chosen, boolean toCp) {
+        List<SoundPreset.Item> picked = new ArrayList<>();
+        for (SoundPreset.Item item : preset.items()) if (chosen.contains(item.path)) picked.add(item);
+        if (picked.isEmpty()) return;
+        String pass = password.get();
+        job(toCp ? "应用内置预设并写入 CP" : "应用内置预设", () -> {
+            Map<String, byte[]> audio = new LinkedHashMap<>();
+            for (SoundPreset.Item item : picked) audio.put(item.path, builtin.audio(preset, item));
+            PresetApply.Result result = PresetApply.apply(store, catalog, store.entries(), audio);
+            String done = "内置预设“" + preset.name + "”已应用到实际音效：" + result.applied.size() + " 个声音已写入本机配置。"
+                + (result.skipped.isEmpty() ? "" : result.skipped.size() + " 个无法应用（" + result.skipped.values().iterator().next() + "）。");
+            if (toCp && !result.applied.isEmpty()) {
+                state.report(done + "正在写入 CP。");
+                new AudioEngine(activity, state::report).apply(pass, false, new LinkedHashSet<>(result.applied));
+            } else state.report(done + (result.applied.isEmpty() ? "" : "可在“实际音效”里逐个调整音量；点击“应用全部配置”或声音卡片里的“保存并应用”后才会写入 CP。"));
+        });
     }
     private void presetActions(SoundStore.Preset preset) {
         new UiDialog(activity, ui, I18n.literal(preset.name))

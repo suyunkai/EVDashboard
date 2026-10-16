@@ -1,98 +1,152 @@
-# 仪表工坊
+# Instrument Workshop · 仪表工坊
 
-独立 Android 应用，包名 `com.kooo.evdashboard`。当前可测试版本为 **0.2.3**，最低 Android 11，arm64。
-镜像处理不依赖 EVCC，不提供 EVCC CP 服务提取入口，也不联网下载镜像处理组件。APK 内置本地工具。权限按钮优先打开 EVCC 的本应用 Android 权限页；EVCC 未安装或入口不可用时明确提示，并提供用户主动选择的系统设置后备入口。
+**English** | [简体中文](README.zh-CN.md)
 
-## 功能
+An Android app for instrument CP image maintenance and instrument chime customization on **Antora 1000** head units. Back up and inspect images, create controlled modifications, and manage actual instrument sounds from one interface.
 
-- **仪表工坊（默认首页）**：按“识别与备份 → 选择与修改 → 校验与写入”操作。导出前显示当前 CP 分区和槽位，完整导出后由用户分类；共用镜像列表支持外部导入、独立勾选 SSH 自启动及 root 密码清除、生成新镜像、重新校验、单槽写入及全量回读。
-- **仪表提示音（第二页）**：读取当前 CP 实际音频，按常用、警报、雷达、低速、参考及诊断分类，分类内上下滚动浏览固定尺寸卡片。点击卡片，在弹窗中管理关联素材的试听、替换、独立音量、还原及单音导出；支持最多 5 张命名预设卡片、配置 ZIP 导入导出，以及应用启动自动覆盖。
-- **备份保护**：原始分类不能改回普通镜像；同设备、同 CP 槽、同固件基线的最后一份有效原始镜像禁止从应用删除。其他原始镜像需两次确认；普通镜像一次确认。删除采用 `deleted-*` 恢复目录，不立即释放空间，必要时用户可人工恢复或清理；应用不自动清理原始备份。
+[Download](https://github.com/suyunkai/EVDashboard/releases/latest) · [Features](#features) · [Getting started](#getting-started) · [Disclaimer](#disclaimer) · [Build from source](#build-from-source)
 
-“原始镜像”是用户对来源的确认，不等于软件鉴定为未修改的原厂固件。重要备份应另存到独立介质。任何拥有文件管理权限或 root 权限的外部程序，以及恢复出厂设置，都可能绕过应用内的保留规则。
+> [!WARNING]
+> **For Antora 1000 head units only.** The chipset alone does not establish compatibility; the firmware and partition layout must also pass the app's checks.
+>
+> **This software can rewrite instrument CP partition images.** An incompatible image, interrupted operation, power loss, or firmware issue can cause severe consequences, including an unusable instrument cluster or head unit and repairs at your expense. Replacing or muting chimes can also affect safety warnings.
+>
+> **You assume all risks and consequences of use.** Keep independent backups and a recovery plan. Perform operations only while parked, with stable power and no OTA update in progress. Follow the laws, regulations, and traffic rules in your country or region. Read the [disclaimer](#disclaimer) before use.
 
-界面支持中文与英文；左下角语言按钮即时切换并记住选择，页面位置随切换保留。导航下方常驻 Antora 1000 适用范围、分区改写风险及法规提醒。声音编辑器按“信息 → 独立音量 → 音频操作”排列；试听按钮可直接停止，关闭弹窗会停止试听。关联素材切换保留本次草稿，关闭放弃，保存或保存并应用时统一提交此卡片的各素材。
+## Download
 
-“选择与修改”在宽屏上分为独立滚动的两列：中间选择或导入镜像，右侧查看所选镜像、修改配置及执行校验/另存等操作。声音分类取消分页按钮，直接上下滚动；预设以卡片显示，最多 5 个。
+The current test version is **[v0.2.3](https://github.com/suyunkai/EVDashboard/releases/tag/v0.2.3)**. Download the APK and its `.sha256` checksum from the release assets.
 
-试听明确使用 Android 媒体通道并申请临时音频焦点；不足 0.5 秒的短音增加 600 ms 起始缓冲并重复 3 次，保持原声道与样本音量。该处理只生成本机试听缓存，实际替换、导出和原始文件均不增加静音或重复。试听结束、失去焦点或应用切入后台时释放播放器与焦点。
+| Item | Requirement / status |
+| --- | --- |
+| Platform | Android 11 or later · `arm64-v8a` |
+| Application ID | `com.kooo.evdashboard` |
+| Release status | Test build; physical sound acceptance remains incomplete |
+| Signing | Public AOSP testkey; not a private production signing key |
 
-声音读取和覆盖前后核验先批量获取 CP 文件 SHA-256，再复用摘要一致的本机音频，只下载新增或变化资源。批量脚本通过 SSH 标准输入传入，兼容 CP 的命令长度限制；覆盖仍保留切换前摘要检查、失败恢复和切换后验证。
+> [!IMPORTANT]
+> The public testkey does not provide an exclusive publisher identity. Verify the download source and checksum. Updating an existing installation requires the same signing certificate; uninstalling clears internal settings. See [signing details](signing/README.md) (Chinese).
 
-## 兼容边界
+## Features
 
-不以车型名称作为开关。当前结构配置要求：
+| Area | What you can do |
+| --- | --- |
+| Image backup | Identify the current CP slot, export a complete image, verify its hash, and classify backups. |
+| Image editing | Import a compatible image, independently configure SSH startup and root password clearing, and generate a new image while preserving the source. |
+| Image writing | Review the candidate, write only the current CP rootfs slot, and verify the complete readback. |
+| Instrument chimes | Read actual CP WAV resources; browse categorized, scrollable sound cards; open a card to preview, replace, restore, or export sounds. |
+| Independent volume | Adjust original or replacement audio from **0% (mute) to 200%**. Derived files preserve the original and replacement sources. |
+| Presets and sharing | Save up to **5 named presets**; import/export configuration and audio together as ZIP; export individual sounds. |
+| Startup apply | Optionally reapply configured sound overlays once per app process launch, subject to identity and parked-state checks. Disabled by default. |
+| Interface | Chinese/English switching, compact sound dialogs, preset cards, wide-screen image selection/configuration columns, and task timing/progress. |
 
-1. 能取得独立 UID 0 权限：已授权 `su`，或用户开启并授权的本机 `127.0.0.1:5555` ADB。不会自动 `adb root`、重启 adbd 或替换已有授权。
-2. `/proc/boot_slot` 明确给出 `cp:a` 或 `cp:b`，对应 by-name `cp_rootfs_a` / `cp_rootfs_b`；不使用 Android 的 A/B 槽位猜测 CP 槽位。
-3. 完整 1 GiB、一条 rootfs 载荷的 FIP，EROFS 偏移 4096、块大小 4096、兼容特性 1、不兼容特性 0。
-4. 已识别的 Dropbear socket、preset 和账号文件结构。锁定账号、掩码/覆盖配置、未知格式拒绝自动改写。
-5. 导入镜像能被检查，不代表能写入。写入还要求与当前本机备份同基线，且逐文件差异仅为允许的 SSH/密码变更或其逆向恢复。
+Image-processing tools are bundled in the APK. Installed operation does not download image-processing components; sound management requires a local connection to the CP system.
 
-兼容结构相同不等于所有固件版本都能启动；不支持跨版本或跨车辆直接混刷。
+## Getting started
 
-## 存储与执行
+1. **Check compatibility and prepare recovery.** Confirm Antora 1000 hardware, Android 11+, authorized root access, stable power, and sufficient free storage. Keep the app in the foreground and the vehicle parked; prevent sleep or OTA activity during operations.
+2. **Install and grant permissions.** Download the APK from Releases, verify its checksum, install it, and grant the requested Android file-access permissions. Image operations require authorized UID 0 access; sound operations require an accessible CP SSH service and explicit host-identity confirmation.
+3. **Create and preserve a backup.** In Workshop, follow **Identify & back up → Select & modify → Verify & write**. Copy a valid backup to separate storage before making persistent changes. An imported image passing inspection is not automatically safe to flash.
+4. **Configure chimes deliberately.** Connect to CP, read the sound catalog, and open a sound card. Choose a replacement and/or adjust volume, then save locally or explicitly save and apply. Review every rule before enabling startup apply.
 
-文件权限入口为 `evcc://permissions/app?package=com.kooo.evdashboard`，限定由 `com.kooo.evcc` 打开。这是 Android 权限管理，不是 EVCC 开放 API 授权。返回本应用会重新检查“所有文件访问权限”，不会因为跳转成功就认为授权成功，也不会自动开始被阻止的写入。
+> [!NOTE]
+> **Image writes are persistent. Sound changes use temporary resource overlays.** Sound overlays do not flash the rootfs and need reapplying after the CP runtime is reset. Importing a sound ZIP only updates local configuration; it does not immediately change CP audio.
 
-镜像 / 音频导入、镜像另存与诊断导出使用**内置文件选择器**，无需车机自带文件管理器或 DocumentsUI。支持当前用户的本机存储与系统已挂载的 U 盘；不支持尚未挂载的 USB 设备。选择器支持逐级目录、分页和另存文件名，不执行 root 文件浏览，不提供任意文件删除，不覆盖同名文件，也不能把另存文件写回受保护镜像库。镜像后缀支持 `.img` / `.bin`，导入仍执行完整结构检查。
+## Working with sounds
 
-镜像库在**当前 Android 用户**的 `Documents/EVDashboard/`：
+- **Browse by category.** Common, alerts, radar, low-speed, reference, and diagnostic groups use fixed-size cards with vertical scrolling. Status badges show replacement and volume settings; operations live in the card dialog.
+- **Keep sources intact.** Replacement selection and volume are separate settings. `100%` uses the selected source's level; `200%` is approximately +6 dB, with soft limiting. Every adjustment creates derived audio rather than accumulating changes in the source.
+- **Edit related sounds together.** A card can contain several related resources. Switching between them preserves the dialog's drafts; closing discards unsaved edits. Saving commits the card's drafts together, and save-and-apply applies that card's changes.
+- **Preview and export.** Listen to the original, replacement, or adjusted sound. Individual export offers the original, current CP sound, configured sound, and replacement source before gain adjustment, when available.
+- **Switch presets.** Name and save up to five templates, then load locally or load and apply. ZIP exports include rules, volume values, source hashes, and referenced audio files.
+- **Review shared resources.** One file may serve several events. Low-speed warning sounds can use shared tracks and speed-dependent mixing, so a single-file preview does not reproduce the vehicle's final output. Unconfirmed reference/diagnostic mappings are preview/export only.
+- **Understand short previews.** Clips shorter than 0.5 seconds receive a 600 ms preview lead-in and repeat three times. This affects only the local preview cache; exported and applied audio retain their configured samples and level.
 
+## Compatibility and operational limits
+
+<details>
+<summary><strong>Image compatibility and write safeguards</strong></summary>
+
+- Image operations require UID 0 through authorized `su` or user-enabled, authorized local ADB at `127.0.0.1:5555`. The app does not automatically run `adb root`, restart adbd, or replace authorization.
+- `/proc/boot_slot` must explicitly report `cp:a` or `cp:b`, mapped to `cp_rootfs_a` / `cp_rootfs_b`. Android A/B slots are not used to guess the CP slot.
+- The supported container is a complete **1 GiB FIP with one rootfs payload**, EROFS offset/block size 4096, compatible features `1`, and incompatible features `0`.
+- Only recognized Dropbear socket, preset, and account layouts are editable. Locked accounts, masked/overridden configurations, and unknown layouts are rejected.
+- Writing requires a matching local backup baseline. File differences must be limited to the permitted SSH/password changes or their reversal. Do not flash across vehicles or firmware versions.
+- Before writing, the app rechecks the slot, boot session, capacity, source/candidate hashes, mounts, and holders. It writes only the current CP rootfs, then compares the complete readback by hash and bytes and checks that the other slot and metadata are unchanged.
+- There is no automatic reboot, slot switch, or failed-write retry. An interrupted task with an unknown result requires manual verification before further operations.
+- Identical-content writes are refused by default. The optional identical-content rewrite test requires extra confirmation and provides no functional upgrade.
+
+**Successful validation or readback does not guarantee bootability, recovery, or automatic A/B fallback.**
+
+</details>
+
+<details>
+<summary><strong>Sound connection, formats, and startup apply</strong></summary>
+
+- Sounds use root SSH, default `198.18.44.2:22`, with temporary bind mounts under `/run/instrument-workshop`. The IPv4 address is editable; the port remains 22. Changing the address clears host trust and disables startup apply until identity is confirmed again.
+- SSH passwords remain in interface memory and are not persisted. Startup apply requires an empty-password connection. A changed host key requires fresh user confirmation; foreign overlays are neither removed nor treated as originals.
+- Catalog reads and pre/post-apply checks fetch fresh SHA-256 manifests, reuse matching immutable local audio, and download only missing or changed resources. Hash checks and rollback handling remain in place.
+- WAV handling supports chunk-aware PCM16 parsing and preserves original container metadata on original-sound export. Other imports use Android MediaCodec. Replacements are converted to the target's 48 kHz mono/stereo format, with a maximum duration of 30 seconds.
+- Apply tasks use a CP-side batch lock and restart only affected playback services that were already running. On failure, they attempt to restore the previous overlay group and service state. An uncertain task is not automatically replayed after SSH disconnection.
+- ZIP files contain `manifest.json` and `audio/<sha256>.wav`. Import validates paths, duplicates, size, version, hashes, format, and channels before replacing local rules. Apply checks the current CP original hashes again to reject incompatible presets.
+- Startup apply is **off by default** and runs once per app process launch, not on every redraw or category switch. It requires a trusted CP identity/catalog and independent, read-only vehicle API confirmation of P gear and fresh zero speed. Missing or uncertain conditions cause it to skip and record the result. There is no Android boot-triggered replay.
+- Muted rules are included when applying a configuration. Review them before enabling automatic application. Older directory-level sound overlays must be restored from the connection page before reading the new catalog.
+
+</details>
+
+<details>
+<summary><strong>Storage, backups, and task progress</strong></summary>
+
+The image library is in the **current Android user's** `Documents/EVDashboard/`:
+
+```text
+images/       Images and separate JSON records
+work/         Generation intermediates, retained on failure
+tasks/        Write manifests and logs
+deleted-*/    Recoverable files after confirmed deletion
 ```
-images/       .img 与独立 JSON 记录
-work/         生成任务中间文件（失败时保留）
-tasks/        刷写任务清单与日志
-deleted-*/    用户确认删除后的恢复目录
-```
 
-原镜像从不原地修改。生成约需额外 4 GiB 空闲空间（包含保守余量）；写入在 `/data/local/evdashboard/jobs/<UUID>` 使用 root 专有副本和完整回读文件，另需约 2.25 GiB。成功写入任务文件暂不自动清理。
+- Source images are never edited in place. Image generation needs approximately **4 GiB of additional free space**. Writing needs another **2.25 GiB** for root-owned staging/readback under `/data/local/evdashboard/jobs/<UUID>`. Successful write-task files are currently retained.
+- The last valid original backup for the same device, CP slot, and firmware baseline cannot be deleted through the app. Original classification cannot be downgraded; deleting other originals requires two confirmations. Deletion moves files into recovery directories and does not immediately reclaim space.
+- An “original” label records the user's source classification; it is not a manufacturer-authenticity certificate. External file tools, root access, or a factory reset can bypass in-app protection. Keep independent backups.
+- The built-in picker supports local storage and already-mounted USB drives without requiring a separate file manager. It rejects same-name overwrites and writes into the protected image library. Image imports accept `.img` / `.bin` and undergo structural inspection.
+- Backup export uses a root read-only stream, app-owned output, and synchronized writes. Partition hashes before/after export must match the complete output hash. Multi-user path fallbacks verify the actual current user and matching file hashes.
+- Task cards show the current operation and elapsed time. Measurable steps show actual step progress and a supported time estimate; other steps use an activity indicator and elapsed time. A completed copy is not a successful task until all checks finish.
 
-Android 多用户 FUSE 路径有时在 adbd 命名空间不可见；应用会核对同一随机文件名及 SHA-256 后使用对应 `/data/media/<当前用户>/...`，不固定用户编号。
+</details>
 
-完整导出采用 root 只读数据流、应用自身写文件并同步落盘，避免 root 从 `/data/media` 写入导致应用侧 FUSE 属性缓存仍显示零长度。导出前后两次读取分区摘要，并与完整文件摘要比较。
+## Validation status
 
-底部任务卡与前台通知显示当前步骤、任务已用时间。复制和应用内完整摘要读取按实际字节显示**当前步骤百分比**，取得足够吞吐样本后估算该步骤剩余时间；超过 10 秒无字节进展时撤销旧估计。重建、外部命令核验、底层刷写等不能可靠计量的步骤显示计时与动态进度条，不显示估算失败文案，不伪造总进度或倒计时。单步数据读取结束也不代表任务通过，只有全部步骤成功返回才显示完成 100%；失败不会显示成功。
+For **v0.2.3**, 94 JVM tests passed; Android Lint reported 0 errors and 31 warnings. Release signature and 16 KiB ZIP alignment checks passed. On the test head unit, 6 UI checks, 3 catalog/cache/file checks, and 1 real short-chime preprocessing/decoding check passed.
 
-写入进程与界面进程分离，但仍要求保持应用前台、车辆稳定供电、不休眠、不驾驶、无 OTA，尽量不要同时运行其他软件。进程退出、断电、存储异常、启动验签或固件问题均可能导致仪表或车机不可用，甚至需要售后自费维修。**通过校验不能保证零风险，也不能保证 A/B 自动回退。**
+**Audible turn-signal preview remains unverified:** the test session's vehicle power state denied media audio focus, so the actual playback check was skipped. The latest sound engine's on-vehicle overlay application, startup apply, rollback, and acoustic behavior still require separate acceptance. This test round did not perform CP overlays or partition writes. Earlier image-write/readback evidence is scoped to the recorded same-content test and cannot establish compatibility with other firmware.
 
-写入前有风险及操作条件四项勾选确认。写入前重新核对槽位、启动会话、分区容量、源摘要、候选副本、挂载与 holders；只写当前 CP rootfs，不写另一槽或 metadata。写入后完整回读、摘要和字节比较，同时核对其他 CP 槽及元数据没有改变。不自动重启、不切槽、不自动重试失败写入。未知中断任务必须先人工核验。
+See [verification records](docs/verification.md) (Chinese) for the exact scope and remaining checks. File hashes, decoding success, and a running service do not establish acceptable sound output or regulatory compliance.
 
-默认拒绝与当前分区完全相同的重复写入。仅供验收的“同内容重写测试”每次默认关闭，必须额外勾选并再次确认风险；测试模式反过来要求候选与当前分区摘要完全相同，不放行不同内容，也不跳过任何备份或回读检查。这不是必要升级，没有功能收益。
+## Disclaimer
 
-## 音效边界
+This is an independent project for technical research and evaluation by users with appropriate authorization. No manufacturer approval, endorsement, or vehicle safety certification is claimed.
 
-音效默认通过 `198.18.44.2:22` 的 root SSH，在 `/run/instrument-workshop` 建立临时资源覆盖，不刷写 rootfs。“仪表提示音 → 连接 CP”允许修改 IPv4 地址，端口固定 22。修改地址会清除旧指纹确认并关闭自动覆盖；新地址必须重新确认主机身份。密码只保存在当前界面内存，不持久化；自动覆盖使用空密码连接。外部工具的覆盖不会被卸载，也不会被当作原声。
+The software, source code, binaries, and documentation are provided **“AS IS” and “AS AVAILABLE,” without warranties** of safety, compatibility, reliability, accuracy, fitness for a particular purpose, or uninterrupted operation. Checks, backups, and recovery features reduce some risks; they do not eliminate them or guarantee restoration.
 
-目录只呈现从当前 CP 发现的 WAV，映射来自已核对的 E245 资源及原生播放器调用表。通用故障、功能提示等文件可能被多个事件共用；转向 Tick/Tock、雷达节奏、锁车普通/轻音在同一张卡片管理。AVAS 按三种风格的主轨/辅助轨管理，保留原有混音和速度曲线；前进/倒车共用素材，单文件试听不代表最终混音。映射未确认的参考/诊断素材只支持试听和导出。旧版 AVAS 目录覆盖需先从连接页恢复，再读取新目录。
+You are responsible for confirming permission to modify the device, assessing compatibility, preserving backups, arranging recovery, reviewing sound settings, and complying with applicable laws, regulations, and traffic rules. Do not operate the software while driving or use configurations that compromise required safety warnings.
 
-WAV 使用 chunk-aware PCM16 解析，保留导出原声的容器元数据；其他格式通过系统 MediaCodec 解码。替换源转成与目标一致的 48 kHz 单声道或双声道，最长 30 秒。替换文件与音量是两个独立配置项：0% 为静音，100% 为源文件音量，最高 200%（约 +6 dB），大幅采样使用平滑限幅。原声、替换源保持不可变，调音总是从源生成独立派生文件，避免反复调节累积失真。
+**You bear the risks and consequences of your use and modifications.** To the extent permitted by applicable law, the developers and contributors accept no liability for losses arising from use, including data loss, device damage, vehicle malfunction, accidents, or repair costs. Nothing in this notice excludes liabilities or rights that cannot be excluded under applicable law.
 
-配置先保存到本机，点击弹窗“保存并应用”只应用当前素材，自动覆盖页可应用全部规则。音效切换由 CP 独立后台任务批量执行，序列锁防止并发切换；只重启受影响且原本运行的播放服务，失败时尝试恢复整组旧覆盖及原服务状态。锁车/充电使用车外播放服务，共用消费者的资源会同时处理对应服务。SSH 断线不主动重放未确认任务。
+## Build from source
 
-预设最多 5 个，保存时命名，可载入或载入并应用。ZIP 格式为 `manifest.json` 加 `audio/<sha256>.wav`，包含每条规则的原声摘要、替换源、独立音量和引用音频。导入只修改本机配置，不立即覆盖 CP；条目路径、重复、大小、版本、摘要、音频格式和声道均先校验，失败保留原配置。应用时再次核对当前 CP 原声摘要，避免将不兼容固件的预设直接套用。单音导出支持原声、CP 当前声音、配置声音及未调音的替换源。
-
-“应用启动时自动覆盖”默认关闭，每次应用进程启动执行一次，不再监听 Android 开机重放旧设置。自动执行要求已确认的 CP 身份与目录一致，并通过只读 Car API 独立确认 P 挡及新鲜零车速；条件不足则跳过并记录结果。界面重绘和分类切换不会重复触发。自动覆盖包含用户配置的静音规则；启用前应核对当前配置。
-
-静态格式、音频摘要或服务 `active` 不能证明实际声音合适；AVAS 声学效果与适用要求需单独现场确认。实现独立编写，没有复制 Custom Profiles 的源码、标识符体系、界面或素材；系统路径和文件格式属于互操作所需信息。
-
-任务区按状态、当前操作和用时分层显示；无法测量进度时只显示计时与处理动画，已有测量值时显示当前步骤百分比和有效的预计剩余时间。声音读取按已完整接收并校验的文件计数。SSH 音频采用有界直接接收，避免 Android 管道缓冲等待导致大文件超时。
-
-## 构建与验证
-
-JDK 17+、Android SDK 36、NDK 28.2.13676358；首次开发构建需要取得 Gradle/Maven 依赖，安装后的使用不需要互联网。
+Use **JDK 17+**, **Android SDK 36**, and **NDK 28.2.13676358**. Native build scripts currently target a macOS host (`darwin-x86_64` NDK toolchain); other hosts require adapting the toolchain path. Set `ANDROID_NDK_HOME` if the NDK is installed elsewhere. The first build needs access to Gradle/Maven dependencies.
 
 ```sh
-./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
-./gradlew :app:assembleDebugAndroidTest
-# 用 AOSP 测试签名的 Release 包做限定的本机 UI/解码测试：
+# Local unit tests, lint, and debug APKs
+./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest
+
+# Release APK and instrumentation APK using the public AOSP testkey
 ./gradlew -PinstrumentBuildType=release :app:assembleRelease :app:assembleReleaseAndroidTest
 ```
 
-设置 `ANDROID_NDK_HOME` 可覆盖本机 NDK 路径。原生工具源码在 `native/` 与 `vendor/`，不调用车机中不受控的 mkfs。
+Outputs: `app/build/outputs/apk/debug/app-debug.apk` and `app/build/outputs/apk/release/app-release.apk`. Building does not install the app or connect to a vehicle.
 
-测试包：`app/build/outputs/apk/debug/app-debug.apk`；这是 Android debug 签名的测试构建，不是正式发布签名。构建不自动安装、不自动连接车辆。
+Native sources and build inputs are in `native/` and `vendor/`. Use an explicit device serial, the actual Android user, and a deliberately selected test class for instrumentation; device tests must not be run indiscriminately on a vehicle.
 
-单测包含备份删除保护、镜像容器边界、曲线 CRC、WAV 元数据/声道/静音/限幅、音量源不变、五预设上限、ZIP 往返及损坏输入、整组覆盖的失败回滚。`SoundUiTest` 只临时使用合成音频目录，关闭自动覆盖和 SSH 指纹后验证卡片/弹窗，结束恢复原目录与配置；`AudioImportTest` 只解码合成普通文件，不播放、不连接 CP。其他仪器测试仍限测试 VM。使用显式设备 serial 和 Android 用户，并限定测试类；构建或本机测试不代表实车声学验收。
-
-验证记录见 [docs/verification.md](docs/verification.md)。第三方工具的源码和许可见 [THIRD_PARTY.md](THIRD_PARTY.md)。
+Third-party source and license information is in [THIRD_PARTY.md](THIRD_PARTY.md) (Chinese); license texts are also included in APK assets. When redistributing bundled tools, comply with their respective source and license obligations.

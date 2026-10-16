@@ -7,6 +7,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <queries><package android:name="com.kooo.evcc" /></queries>
     <application android:name=".AppState" android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher"
         android:theme="@style/AppTheme" android:allowBackup="false" android:dataExtractionRules="@xml/no_backup"
@@ -17,5 +18,26 @@
         <service android:name=".TaskService" android:exported="false" android:foregroundServiceType="specialUse">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User initiated local instrument firmware backup, validation and maintenance" />
         </service>
+        <service android:name=".AutoApplyService" android:exported="false" android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User enabled instrument sound overlay recovery after boot and suspend resume, with a visible ongoing notification" />
+        </service>
+        <receiver android:name=".BootReceiver" android:exported="true" android:directBootAware="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.USER_UNLOCKED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.ecarx.intent.action.SYSTEM_READY" />
+                <action android:name="com.ecarx.systemui.SYSTEM_UI_READY" />
+                <action android:name="com.ecarx.intent.action.ACC_ON" />
+                <action android:name="com.ecarx.intent.action.IGN_ON" />
+                <action android:name="com.ecarx.intent.action.POWER_ON" />
+                <action android:name="com.ecarx.intent.action.WAKEUP" />
+                <action android:name="com.ecarx.intent.action.STR_RESUME" />
+                <action android:name="ecarx.intent.action.power.STRMODE" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

@@ -109,13 +109,25 @@ final class AudioEngine {
     private void establish(SshAccess ssh) throws Exception {
         ssh.text("set -e; test \"$(id -u)\" = 0; test -d /run; mkdir -p " + q(ROOT + "/originals") + "; chmod 700 " + q(ROOT), 10);
     }
+    private void requireAutomaticAllowed() throws Exception {
+        android.os.PowerManager power = context.getSystemService(android.os.PowerManager.class);
+        FilesEx.require(AutoApplyService.enabled(context) && power != null && power.isInteractive(), "自动覆盖已关闭或车机仍在休眠");
+        FilesEx.require(!new File(context.getFilesDir(), "pending-write.json").exists(), "存在待核验的分区写入任务，暂不自动恢复声音");
+        FilesEx.require(SshAccess.trusted(context) && store.identity().equals(identity(context)), "自动覆盖的 CP 身份与声音目录不一致，请重新读取");
+        ParkedProbe.requireParked(context);
+    }
+    /** Retryable readiness work is strictly read-only on CP. */
+    void prepareAutomatic() throws Exception {
+        requireAutomaticAllowed();
+        try (SshAccess ssh = new SshAccess(context)) {
+            ssh.connect("");
+            ssh.text("test ! -d " + q(ROOT + "/operation.lock") + " && test -d /run && test -d " + q(SoundCatalog.CHIMES), 10);
+        }
+    }
     void apply(String password, boolean automatic) throws Exception {apply(password, automatic, null);}
     void apply(String password, boolean automatic, Set<String> scope) throws Exception {
         Map<String, SoundStore.Rule> rules = store.rules();
-        if (automatic) {
-            FilesEx.require(SshAccess.trusted(context) && store.identity().equals(identity(context)), "自动覆盖的 CP 身份与声音目录不一致，请重新读取");
-            ParkedProbe.requireParked(context);
-        }
+        if (automatic) requireAutomaticAllowed();
         try (SshAccess ssh = new SshAccess(context)) {
             ssh.connect(password); List<SoundStore.Entry> entries = refresh(ssh);
             Map<String, SoundStore.Entry> byPath = new HashMap<>(); for (SoundStore.Entry e : entries) byPath.put(e.path, e);
@@ -141,6 +153,7 @@ final class AudioEngine {
                 changes.add(new AudioPlan.Change(e.path, replacement, e.current)); services.addAll(spec.services);
             }
             if (changes.isEmpty()) {progress.accept("当前声音已符合配置，无需重复覆盖。"); return;}
+            if (automatic) requireAutomaticAllowed();
             establish(ssh);
             long uploadBytes = 0; for (byte[] data : uploads.values()) uploadBytes += data.length;
             ssh.text("set -e; test \"$(df -k /run | tail -n 1 | awk '{print $4}')\" -gt " + (uploadBytes / 1024 + 32768) + "; mkdir " + q(stage), 10);
@@ -155,7 +168,7 @@ final class AudioEngine {
                 String path = stage + "/" + upload.getKey() + ".wav"; ssh.upload(path, upload.getValue());
                 ssh.text("chmod 0444 " + q(path), 10);
             }
-            if (automatic) ParkedProbe.requireParked(context);
+            if (automatic) requireAutomaticAllowed();
             progress.accept("临时切换 " + changes.size() + " 个声音，检查播放服务及覆盖摘要…");
             run(ssh, stage, AudioPlan.batch(changes, services, stage));
             if (measured != null) measured.stage("校验覆盖结果", 0);

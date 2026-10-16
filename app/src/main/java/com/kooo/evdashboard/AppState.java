@@ -18,8 +18,7 @@ public final class AppState extends Application {
     @Override public void onCreate(){super.onCreate();}
     void startupAudio() {
         if (!audioStartup.compareAndSet(false, true) || !getSharedPreferences("settings", 0).getBoolean("soundAutoApply", false)) return;
-        try {submit("启动自动覆盖仪表提示音", () -> new AudioEngine(this, this::report).apply("", true));}
-        catch (Exception e) {report("启动自动覆盖未开始：" + e.getMessage());}
+        AutoApplyService.start(this, "APP_START");
     }
     synchronized void storage()throws Exception{FilesEx.require(Environment.isExternalStorageManager(),"请前往 EVCC 的本应用权限页授予所有文件访问权限，返回后自动检查");if(library==null){library=new ImageLibrary(new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),"EVDashboard"));workshop=new WorkshopEngine(this,library,this::report,progress);}}
     synchronized void report(String message){status=message;

@@ -27,7 +27,7 @@ public final class MainActivity extends Activity {
         {"连接 CP", "声音目录", "预设与导出", "自动覆盖", "使用说明"},
         {"1 · 识别与备份", "2 · 选择与修改", "3 · 校验与写入", "任务与恢复"}};
     private static final String[][] SUBTITLES = {
-        {"", "分类浏览实际声音", "最多 5 个 · ZIP 备份", "应用启动时执行", "试听、音量与恢复"},
+        {"", "分类浏览实际声音", "最多 5 个 · ZIP 备份", "开机与 STR 唤醒", "试听、音量与恢复"},
         {"先识别，再导出备份", "选择镜像，再生成副本", "保留备份并全量回读", "写后回读与恢复"}};
     private static final int[][] ICONS = {
         {R.drawable.ic_ui_link, R.drawable.ic_ui_audio, R.drawable.ic_ui_lock, R.drawable.ic_ui_save, R.drawable.ic_ui_flask},
@@ -762,8 +762,12 @@ public final class MainActivity extends Activity {
         } catch (Exception e) {error(e.getMessage());}
     }
 
+    private String appVersion() {
+        try {return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;}
+        catch (android.content.pm.PackageManager.NameNotFoundException error) {return "";}
+    }
     private void licenses() {
-        String[] labels = {"仪表工坊 0.2.3 测试版 · 数据与组件说明", "EROFS GPL-2.0-or-later", "JSch BSD", "JZlib BSD", "jBCrypt ISC"};
+        String[] labels = {"仪表工坊 " + appVersion() + " · 数据与组件说明", "EROFS GPL-2.0-or-later", "JSch BSD", "JZlib BSD", "jBCrypt ISC"};
         String[] paths = {"licenses/NOTICE.txt", "licenses/erofs/GPL-2.0", "licenses/jsch/LICENSE.txt", "licenses/jsch/LICENSE.JZlib.txt", "licenses/jsch/LICENSE.jBCrypt.txt"};
         new UiDialog(this, ui, "本机说明与开源许可").items(labels, w -> {
             try (InputStream in = getAssets().open(paths[w])) {
@@ -808,7 +812,7 @@ public final class MainActivity extends Activity {
                 state.report("另存并回读校验通过：\n" + target + "\n镜像库原文件未改变。");
             } else {
                 File log = new File(getFilesDir(), "last-task.log");
-                String report = "仪表工坊 0.2.3\n" + (log.isFile() ? FilesEx.readText(log) : state.status);
+                String report = "仪表工坊 " + appVersion() + "\n" + (log.isFile() ? FilesEx.readText(log) : state.status);
                 FilesEx.require(target.createNewFile(), "同名文件已存在，拒绝覆盖");
                 try (FileOutputStream out = new FileOutputStream(target)) {out.write(report.getBytes(java.nio.charset.StandardCharsets.UTF_8)); out.getFD().sync();}
                 state.report("诊断记录已导出：\n" + target + "\n不包含密码或 shadow 密码字段。");

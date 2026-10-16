@@ -21,6 +21,8 @@ final class SoundPanel implements AutoCloseable {
     private final SoundStore store;
     private final LinearLayout directory, grid, categoryBar, presetList;
     private final TextView summary, presetCount;
+    private TextView automaticStatus;
+    private Ui.SwitchRow automaticRow;
     private final ScrollView soundScroll;
     private final Map<String, List<SoundStore.Entry>> groups = new LinkedHashMap<>();
     private List<SoundStore.Entry> entries = new ArrayList<>();
@@ -63,15 +65,24 @@ final class SoundPanel implements AutoCloseable {
     }
     View automatic() {
         LinearLayout root = shell("自动覆盖");
-        Ui.SwitchRow automatic = ui.switchRow("应用启动时自动覆盖", "按当前配置应用替换与音量；默认关闭", preferences().getBoolean("soundAutoApply", false));
+        Ui.SwitchRow automatic = ui.switchRow("开机与唤醒自动覆盖", "按当前配置应用替换与音量；默认关闭", preferences().getBoolean("soundAutoApply", false));
+        automaticRow = automatic;
         automatic.toggle.setOnCheckedChangeListener((button, enabled) -> {
             if (enabled && (!SshAccess.trusted(activity) || entries.isEmpty() || !password.get().isEmpty())) {
                 automatic.toggle.setChecked(false); activity.error("请先使用空密码连接、确认主机指纹并读取声音目录；自动连接不保存 SSH 密码"); return;
             }
             preferences().edit().putBoolean("soundAutoApply", enabled).apply();
+            if (enabled) AutoApplyService.start(activity, "ENABLED"); else AutoApplyService.stop(activity);
         });
         root.addView(automatic.view);
-        root.addView(ui.text("每次启动应用进程时执行一次。自动执行前检查 CP 身份、P 挡及零车速；状态不明时跳过并保留任务记录。只重建临时覆盖，CP 重启后原始资源仍保留。", 28, ui.muted, false), ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(22), 0, ui.px(24)));
+        root.addView(ui.text("启用后在后台监听开机、快速启动及 STR 唤醒，打开应用也会检查。重复事件合并；最多等待 3 分钟确认 CP 身份、P 挡及零车速，再恢复临时覆盖。覆盖失败不会自动重试。", 28, ui.muted, false), ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(22), 0, ui.px(16)));
+        automaticStatus = ui.text(preferences().getString("startupStatus", "等待开机或唤醒事件"), 25, ui.muted, false);
+        automaticStatus.setTag("automatic-startup-status"); root.addView(automaticStatus, ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(16)));
+        root.addView(ui.text("请先打开应用一次并允许后台运行。强制停止后需重新打开；部分系统需在后台运行设置中放行。监听服务空闲时不持有唤醒锁，也不会自动打开界面。", 25, ui.muted, false), ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(20)));
+        root.addView(ui.button("后台运行设置", Ui.Look.TINT, v -> {
+            try {activity.startActivity(new android.content.Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));}
+            catch (RuntimeException error) {activity.error("此系统未提供后台运行设置入口，请在系统设置中允许后台运行");}
+        }), ui.lp(Ui.WRAP, ui.px(86), 0, 0, 0, ui.px(14)));
         root.addView(ui.button("立即应用全部配置", Ui.Look.PRIMARY, v -> applyAll()));
         root.addView(ui.button("停止下次自动覆盖", Ui.Look.TINT, v -> {automatic.toggle.setChecked(false); state.report("已关闭下次启动自动覆盖，当前 CP 声音保持现状。");}), ui.lp(Ui.WRAP, ui.px(96), 0, ui.px(18), 0, 0));
         return root;
@@ -98,6 +109,8 @@ final class SoundPanel implements AutoCloseable {
     void refresh() {readRequested = true; String pass = password.get(); job("读取 CP 实际提示音", () -> new AudioEngine(activity, state::report).refresh(pass));}
     void reload() {
         if (closed) return;
+        if (automaticRow != null) automaticRow.toggle.setChecked(preferences().getBoolean("soundAutoApply", false));
+        if (automaticStatus != null) automaticStatus.setText(I18n.text(activity, preferences().getString("startupStatus", "等待开机或唤醒事件")));
         try {
             entries = store.entries(); rules = store.rules(); cards(); presetCards();
             if (!state.busy.get() && reopenEditor != null) {

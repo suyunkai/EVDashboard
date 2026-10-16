@@ -2,12 +2,14 @@
 
 **English** | [简体中文](README.zh-CN.md)
 
-An Android app for instrument CP image maintenance and instrument chime customization on **Antora 1000** head units. Back up and inspect images, create controlled modifications, and manage actual instrument sounds from one interface.
+![EVDashboard — instrument images, chimes, and presets for single Antora 1000 head units](docs/images/evdashboard-banner.svg)
 
-[Download](https://github.com/suyunkai/EVDashboard/releases/latest) · [Features](#features) · [Getting started](#getting-started) · [Disclaimer](#disclaimer) · [Build from source](#build-from-source)
+An Android app for instrument CP image maintenance and instrument chime customization on head units with a **single Antora 1000 chip**. Back up and inspect images, create controlled modifications, and manage actual instrument sounds from one interface.
+
+[Download](https://github.com/suyunkai/EVDashboard/releases/latest) · [Features](#features) · [Screenshots](#screenshots) · [Getting started](#getting-started) · [Disclaimer](#disclaimer) · [Build from source](#build-from-source)
 
 > [!WARNING]
-> **For Antora 1000 head units only.** The chipset alone does not establish compatibility; the firmware and partition layout must also pass the app's checks.
+> **Only for head units with a single Antora 1000 chip.** The chipset alone does not establish compatibility; the firmware and partition layout must also pass the app's checks.
 >
 > **This software can rewrite instrument CP partition images.** An incompatible image, interrupted operation, power loss, or firmware issue can cause severe consequences, including an unusable instrument cluster or head unit and repairs at your expense. Replacing or muting chimes can also affect safety warnings.
 >
@@ -41,9 +43,31 @@ The current version is **[v0.2.3](https://github.com/suyunkai/EVDashboard/releas
 
 Image-processing tools are bundled in the APK. Installed operation does not download image-processing components; sound management requires a local connection to the CP system.
 
+## Screenshots
+
+The screenshots below show the Chinese interface with example data. The app also supports English.
+
+### Instrument sounds
+
+Browse sound categories and see replacement and volume settings on compact cards.
+
+[![Instrument sound catalog with categories and compact sound cards](docs/images/sound-catalog.png)](docs/images/sound-catalog.png)
+
+### Image workspace
+
+Select an image in the middle column and review its configuration and actions on the right.
+
+[![Image workspace with separate image selection and configuration columns](docs/images/image-workspace.png)](docs/images/image-workspace.png)
+
+### Sound editor · Dark appearance
+
+Adjust independent volume, preview audio, select a replacement, restore defaults, or export a sound from one dialog.
+
+[![Dark sound editor with an independent volume slider and compact audio action buttons](docs/images/sound-editor-dark.png)](docs/images/sound-editor-dark.png)
+
 ## Getting started
 
-1. **Check compatibility and prepare recovery.** Confirm Antora 1000 hardware, Android 11+, authorized root access, stable power, and sufficient free storage. Keep the app in the foreground and the vehicle parked; prevent sleep or OTA activity during operations.
+1. **Check compatibility and prepare recovery.** Confirm a head unit with a **single Antora 1000 chip**, Android 11+, authorized root access, stable power, and sufficient free storage. Keep the app in the foreground and the vehicle parked; prevent sleep or OTA activity during operations.
 2. **Install and grant permissions.** Download the APK from Releases, verify its checksum, install it, and grant the requested Android file-access permissions. Image operations require authorized UID 0 access; sound operations require an accessible CP SSH service and explicit host-identity confirmation.
 3. **Create and preserve a backup.** In Workshop, follow **Identify & back up → Select & modify → Verify & write**. Copy a valid backup to separate storage before making persistent changes. An imported image passing inspection is not automatically safe to flash.
 4. **Configure chimes deliberately.** Connect to CP, read the sound catalog, and open a sound card. Choose a replacement and/or adjust volume, then save locally or explicitly save and apply. Review every rule before enabling startup apply.

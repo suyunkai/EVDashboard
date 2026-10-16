@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="360" viewBox="0 0 1440 360" role="img" aria-labelledby="title description">
+  <title id="title">EVDashboard</title>
+  <desc id="description">Instrument images, chimes, and presets. For head units with a single Antora 1000 chip. Android 11 or later, arm64.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1440" y2="360" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B1B2B"/>
+      <stop offset="1" stop-color="#102C3C"/>
+    </linearGradient>
+    <linearGradient id="icon" x1="0" y1="0" x2="108" y2="108" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#17536B"/>
+      <stop offset=".5" stop-color="#117B86"/>
+      <stop offset="1" stop-color="#0A4654"/>
+    </linearGradient>
+    <linearGradient id="wave" x1="1010" y1="70" x2="1310" y2="290" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8DF4D4"/>
+      <stop offset="1" stop-color="#5387FF"/>
+    </linearGradient>
+    <clipPath id="bounds"><rect width="1440" height="360" rx="28"/></clipPath>
+  </defs>
+  <g clip-path="url(#bounds)">
+    <rect width="1440" height="360" rx="28" fill="url(#background)"/>
+    <circle cx="1360" cy="10" r="280" fill="#184451" opacity=".25"/>
+    <circle cx="1360" cy="10" r="210" fill="none" stroke="#8DE4D6" stroke-opacity=".09"/>
+    <circle cx="1360" cy="10" r="330" fill="none" stroke="#8DE4D6" stroke-opacity=".07"/>
+    <path d="M960 72V288" stroke="#ABC6D5" stroke-opacity=".14"/>
+    <g transform="translate(64 80) scale(1.48148)">
+      <rect width="108" height="108" rx="28" fill="url(#icon)" stroke="#8DE4D6" stroke-opacity=".25"/>
+      <path d="M29 69A29 29 0 1 1 79 69" fill="none" stroke="#F0FFF9" stroke-width="5.5" stroke-linecap="round"/>
+      <path d="M31 54h5M38 36l3 4M54 30v5M70 36l-3 4M77 54h-5" fill="none" stroke="#8DE4D6" stroke-width="2.6" stroke-linecap="round"/>
+      <path d="M50.8 54.8 67.4 38.5Q69 37 68.2 39.3L57.2 59.2Z" fill="#8DF4D4"/>
+      <circle cx="54" cy="57" r="5" fill="#FFFFFF"/>
+      <path d="M39 76h30" fill="none" stroke="#D5FFF0" stroke-width="4.5" stroke-linecap="round"/>
+    </g>
+    <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif">
+      <text x="264" y="100" font-size="15" font-weight="600" letter-spacing="3" fill="#8DE4D6">INSTRUMENT MAINTENANCE</text>
+      <text x="260" y="170" font-size="64" font-weight="700" letter-spacing="-2" fill="#F3F8FC">EVDashboard</text>
+      <text x="264" y="211" font-size="23" fill="#B6C9D9">Instrument images · Chimes · Presets</text>
+      <rect x="264" y="248" width="225" height="36" rx="18" fill="#8DF4D4" fill-opacity=".12" stroke="#8DF4D4" stroke-opacity=".23"/>
+      <text x="376.5" y="271" text-anchor="middle" font-size="14" font-weight="600" letter-spacing=".7" fill="#9DEAD6">SINGLE ANTORA 1000</text>
+      <rect x="501" y="248" width="127" height="36" rx="18" fill="#FFFFFF" fill-opacity=".05"/>
+      <text x="564.5" y="271" text-anchor="middle" font-size="14" font-weight="500" fill="#C9D8E3">Android 11+</text>
+      <rect x="640" y="248" width="87" height="36" rx="18" fill="#FFFFFF" fill-opacity=".05"/>
+      <text x="683.5" y="271" text-anchor="middle" font-size="14" font-weight="500" fill="#C9D8E3">arm64</text>
+    </g>
+    <g stroke="url(#wave)" stroke-width="9" stroke-linecap="round">
+      <path d="M1036 164v32M1060 145v70M1084 123v114M1108 151v58M1132 99v162M1156 77v206M1180 116v128M1204 146v68M1228 125v110M1252 155v50M1276 166v28"/>
+    </g>
+    <path d="M1010 309H1300" stroke="#8DE4D6" stroke-opacity=".1"/>
+  </g>
+</svg>

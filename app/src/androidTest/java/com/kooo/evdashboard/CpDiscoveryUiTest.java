@@ -32,7 +32,7 @@ public class CpDiscoveryUiTest {
     private Object call(String name, Class<?>[] types, Object...args) throws Exception {Method m=MainActivity.class.getDeclaredMethod(name,types);m.setAccessible(true);return m.invoke(activity,args);}
     @Before public void setup() throws Exception {
         instrumentation=InstrumentationRegistry.getInstrumentation();context=instrumentation.getTargetContext();prefs=context.getSharedPreferences("settings",0);
-        saved=new HashMap<>(prefs.getAll());prefs.edit().remove("sshKnown").putBoolean("soundAutoApply",false).putString("uiLanguage","zh").commit();
+        saved=new HashMap<>(prefs.getAll());prefs.edit().remove("sshKnown").remove("sshVerifiedHost").putBoolean("soundAutoApply",false).putString("uiLanguage","zh").commit();
         activity=(MainActivity)instrumentation.startActivitySync(new Intent(context,MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK));instrumentation.waitForIdleSync();
         app=context.getApplicationContext();oldLibrary=field(app.getClass(),"library").get(app);oldSelection=(String)field(app.getClass(),"selected").get(app);
     }

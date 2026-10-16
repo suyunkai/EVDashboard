@@ -239,9 +239,9 @@ B.lock=(o={})=>card('锁车提示音',`
   <div class="row wrap">${btn('恢复默认锁车提示音')}<span class="grow"></span>${btn('应用锁车提示音','primary big','check')}</div>`,
   {no:o.no,k:o.k,chip:chip('未选择音频')});
 B.saved=(o={})=>card('已保存设置',`
-  ${sw('开机尝试恢复已保存的 AVAS / 锁车音效',false,'默认关闭 · 需独立确认 P 挡且零车速')}
+  ${sw('开机尝试恢复已保存的 AVAS / 锁车音效',false,'默认关闭 · 连接就绪后核对配置')}
   <div class="row">${btn('手动重新应用已保存音效')}</div>`,{no:o.no,k:o.k});
-B.test=(o={})=>`<section class="card hz" style="border-color:var(--warn-line);background-color:var(--warn-bg)" ${o.k?`data-k="${o.k}"`:''}><div class="card-h">${o.no?`<span class="no">${o.no}</span>`:''}<h3 style="color:var(--warn)">驻车测试 · 谨慎操作</h3>${chip('仅限 P 挡','warn','warn')}</div>
+B.test=(o={})=>`<section class="card hz" style="border-color:var(--warn-line);background-color:var(--warn-bg)" ${o.k?`data-k="${o.k}"`:''}><div class="card-h">${o.no?`<span class="no">${o.no}</span>`:''}<h3 style="color:var(--warn)">驻车测试 · 谨慎操作</h3>${chip('临时覆盖','warn','warn')}</div>
   <div class="sub" style="color:var(--ink);opacity:.82">AVAS 与车辆提示音承担安全提醒作用。以下静音操作只用于驻车测试，不保存为开机设置，离开测试前必须恢复。</div>
   <div class="row wrap">${btn('临时停止 AVAS','warn')}${btn('开启 AVAS 服务')}${btn('临时静音启用 / 退出提示（含巡航）','warn')}${btn('恢复巡航提示音')}</div></section>`;
 

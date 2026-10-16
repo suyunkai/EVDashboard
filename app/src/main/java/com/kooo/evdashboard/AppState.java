@@ -15,7 +15,11 @@ public final class AppState extends Application {
     private final AtomicBoolean audioStartup = new AtomicBoolean();
     volatile Job pending;volatile String title="就绪",status="所有镜像处理均在本机完成。未识别设备前不会读取或写入分区。";
     volatile String selected="";volatile boolean failed;volatile ImageLibrary library;volatile WorkshopEngine workshop;
-    @Override public void onCreate(){super.onCreate();}
+    @Override public void onCreate(){
+        super.onCreate();
+        android.os.UserManager users = getSystemService(android.os.UserManager.class);
+        if (users != null && users.isUserUnlocked()) new android.os.Handler(getMainLooper()).post(this::startupAudio);
+    }
     void startupAudio() {
         if (!audioStartup.compareAndSet(false, true) || !getSharedPreferences("settings", 0).getBoolean("soundAutoApply", false)) return;
         AutoApplyService.start(this, "APP_START");

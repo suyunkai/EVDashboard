@@ -17,9 +17,10 @@ final class AudioEngine {
     private final SoundCatalog catalog;
     private final SoundStore store;
     private int lastDownloaded;
-    AudioEngine(Context context, Consumer<String> progress) throws Exception {
+    AudioEngine(Context context, Consumer<String> progress) throws Exception {this(context, progress, true);}
+    AudioEngine(Context context, Consumer<String> progress, boolean taskProgress) throws Exception {
         this.context = context; this.progress = progress; catalog = catalog(context); store = store(context, catalog);
-        measured = context.getApplicationContext() instanceof AppState ? ((AppState) context.getApplicationContext()).progress : null;
+        measured = taskProgress && context.getApplicationContext() instanceof AppState ? ((AppState) context.getApplicationContext()).progress : null;
     }
     static SoundCatalog catalog(Context context) throws Exception {
         try (InputStream in = context.getAssets().open("sounds/catalog.json")) {
@@ -31,7 +32,7 @@ final class AudioEngine {
         return new SoundStore(new File(context.getFilesDir(), "instrument-sounds"), catalog);
     }
     static String identity(Context context) throws Exception {
-        return FilesEx.hashText(context.getSharedPreferences("settings", 0).getString("sshKnown", ""));
+        return FilesEx.hashText("cp-ip-v1:" + CpAddress.parse(SshAccess.host(context)) + ":22/root");
     }
     private static String q(String text) {return FilesEx.quote(text);}
     private static boolean owned(String path) {return path.startsWith(ROOT + "/") || path.startsWith("/instrument-workshop/");}
@@ -113,19 +114,42 @@ final class AudioEngine {
         android.os.PowerManager power = context.getSystemService(android.os.PowerManager.class);
         FilesEx.require(AutoApplyService.enabled(context) && power != null && power.isInteractive(), "自动覆盖已关闭或车机仍在休眠");
         FilesEx.require(!new File(context.getFilesDir(), "pending-write.json").exists(), "存在待核验的分区写入任务，暂不自动恢复声音");
-        FilesEx.require(SshAccess.trusted(context) && store.identity().equals(identity(context)), "自动覆盖的 CP 身份与声音目录不一致，请重新读取");
-        ParkedProbe.requireParked(context);
+        String known = context.getSharedPreferences("settings", 0).getString("sshKnown", "");
+        boolean legacy = known.startsWith(SshAccess.host(context) + " ") && store.identity().equals(FilesEx.hashText(known));
+        FilesEx.require(SshAccess.trusted(context) && !store.entries().isEmpty() && (store.identity().equals(identity(context)) || legacy),
+            "自动覆盖的 CP 地址与声音目录不一致，请重新读取");
     }
     /** Retryable readiness work is strictly read-only on CP. */
-    void prepareAutomatic() throws Exception {
+    boolean prepareAutomatic() throws Exception {
         requireAutomaticAllowed();
         try (SshAccess ssh = new SshAccess(context)) {
             ssh.connect("");
             ssh.text("test ! -d " + q(ROOT + "/operation.lock") + " && test -d /run && test -d " + q(SoundCatalog.CHIMES), 10);
+            Map<String, SoundStore.Rule> rules = store.rules();
+            List<SoundStore.Entry> entries = refresh(ssh);
+            Set<String> found = new HashSet<>(); boolean needed = false;
+            for (SoundStore.Entry entry : entries) {
+                SoundStore.Rule rule = rules.get(entry.path);
+                FilesEx.require(!entry.overlay.equals("LEGACY"), "检测到旧版覆盖，请先恢复旧版覆盖");
+                if (rule != null) {
+                    found.add(entry.path);
+                    FilesEx.require(entry.original.equals(rule.original) && !entry.overlay.equals("FOREIGN"), "预设原声与当前 CP 不匹配，请重新配置此声音");
+                    if (!entry.current.equals(store.render(rule)) || !entry.overlay.equals("OWN")) needed = true;
+                } else if (entry.overlay.equals("OWN")) needed = true;
+            }
+            FilesEx.require(found.size() == rules.size(), "配置中的声音在当前 CP 上不存在，请重新读取");
+            FilesEx.require(!needed || !context.getSharedPreferences("settings", 0).getBoolean("startupApplyUncertain", false),
+                "上次覆盖结果待确认，请手动应用配置后再自动恢复");
+            if (!needed) clearUncertain();
+            return needed;
         }
+    }
+    private void clearUncertain() {
+        context.getSharedPreferences("settings", 0).edit().remove("startupApplyUncertain").apply();
     }
     void apply(String password, boolean automatic) throws Exception {apply(password, automatic, null);}
     void apply(String password, boolean automatic, Set<String> scope) throws Exception {
+        boolean unresolved = context.getSharedPreferences("settings", 0).getBoolean("startupApplyUncertain", false);
         Map<String, SoundStore.Rule> rules = store.rules();
         if (automatic) requireAutomaticAllowed();
         try (SshAccess ssh = new SshAccess(context)) {
@@ -152,7 +176,7 @@ final class AudioEngine {
                 if (rule != null) uploads.put(desired, store.bytes(desired));
                 changes.add(new AudioPlan.Change(e.path, replacement, e.current)); services.addAll(spec.services);
             }
-            if (changes.isEmpty()) {progress.accept("当前声音已符合配置，无需重复覆盖。"); return;}
+            if (changes.isEmpty()) {if (scope == null) clearUncertain(); progress.accept("当前声音已符合配置，无需重复覆盖。"); return;}
             if (automatic) requireAutomaticAllowed();
             establish(ssh);
             long uploadBytes = 0; for (byte[] data : uploads.values()) uploadBytes += data.length;
@@ -170,9 +194,11 @@ final class AudioEngine {
             }
             if (automatic) requireAutomaticAllowed();
             progress.accept("临时切换 " + changes.size() + " 个声音，检查播放服务及覆盖摘要…");
+            FilesEx.require(context.getSharedPreferences("settings", 0).edit().putBoolean("startupApplyUncertain", true).commit(), "无法保存覆盖任务状态");
             run(ssh, stage, AudioPlan.batch(changes, services, stage));
             if (measured != null) measured.stage("校验覆盖结果", 0);
             SoundSync.verify(expected, refresh(ssh));
+            if (scope == null || !unresolved) clearUncertain();
             progress.accept("配置已应用，资源摘要和播放服务检查通过。实际车外/仪表声音仍需现场确认。");
         }
     }

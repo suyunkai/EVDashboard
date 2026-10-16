@@ -59,7 +59,7 @@ public class WorkshopUiTest {
         try{instrumentation.runOnMainSync(()->clickRow(visible("前往 EVCC 授权本应用权限")));assertEquals(1,calls.get());}
         finally{instrumentation.removeMonitor(monitor);}
     }
-    @Test public void fingerprintIsBoundToSavedAddress() throws Exception {
+    @Test public void connectionIsBoundToAddressAndSurvivesHostKeyRotation() throws Exception {
         java.lang.reflect.Method trusted=activity.getClassLoader().loadClass("com.kooo.evdashboard.SshAccess").getDeclaredMethod("trusted",Context.class);
         trusted.setAccessible(true);
         SharedPreferences preferences=activity.getSharedPreferences("settings",0);
@@ -69,7 +69,7 @@ public class WorkshopUiTest {
             preferences.edit().putBoolean("sshKeyChanged",false).putString("cpHost","192.168.10.20").putString("sshKnown","198.18.44.2 ssh-rsa fixture").commit();
             assertEquals(false,trusted.invoke(null,activity));
             preferences.edit().putString("sshKnown","192.168.10.20 ssh-rsa fixture").commit();assertEquals(true,trusted.invoke(null,activity));
-            preferences.edit().putBoolean("sshKeyChanged",true).commit();assertEquals(false,trusted.invoke(null,activity));
+            preferences.edit().putBoolean("sshKeyChanged",true).commit();assertEquals(true,trusted.invoke(null,activity));
         }finally{
             SharedPreferences.Editor edit=preferences.edit();if(host==null)edit.remove("cpHost");else edit.putString("cpHost",host);
             if(key==null)edit.remove("sshKnown");else edit.putString("sshKnown",key);edit.putBoolean("sshKeyChanged",changed).commit();

@@ -60,4 +60,15 @@ public class StartupRecoveryTest {
         StartupRecovery gate = new StartupRecovery(30_000);
         assertFalse(gate.request(29_999)); assertTrue(gate.request(30_000));
     }
+    @Test public void monitorCanCheckAgainAfterCpOutlivesInitialReadinessWindow() {
+        StartupRecovery gate = new StartupRecovery(0); assertTrue(gate.request(0));
+        assertTrue(gate.expired(180_000)); gate.finish(180_000);
+        assertFalse(gate.request(209_999)); assertTrue(gate.request(240_000));
+        assertTrue(gate.beginApply(gate.generation(), 242_000));
+    }
+    @Test public void serviceRestartAndUserWakeAreChecksRatherThanCommands() {
+        for (String reason : new String[]{"SERVICE_RESTART", "MONITOR", "WATCHDOG", "android.intent.action.USER_FOREGROUND", "android.intent.action.USER_PRESENT", "android.intent.action.ACTION_POWER_CONNECTED"})
+            assertTrue(reason, StartupRecovery.accepts(reason));
+        assertFalse(StartupRecovery.accepts(null)); assertFalse(StartupRecovery.accepts("apply; reboot"));
+    }
 }

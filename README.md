@@ -13,11 +13,11 @@ An Android app for instrument CP image maintenance and instrument chime customiz
 >
 > **This software can rewrite instrument CP partition images.** An incompatible image, interrupted operation, power loss, or firmware issue can cause severe consequences, including an unusable instrument cluster or head unit and repairs at your expense. Replacing or muting chimes can also affect safety warnings.
 >
-> **You assume all risks and consequences of use.** Keep independent backups and a recovery plan. Perform operations only while parked, with stable power and no OTA update in progress. Follow the laws, regulations, and traffic rules in your country or region. Read the [disclaimer](#disclaimer) before use.
+> **You assume all risks and consequences of use.** Keep independent backups and a recovery plan. Keep power stable and prevent OTA updates during operations. Follow the laws, regulations, and traffic rules in your country or region. Read the [disclaimer](#disclaimer) before use.
 
 ## Download
 
-The current version is **[v0.2.6](https://github.com/suyunkai/EVDashboard/releases/tag/v0.2.6)**. Download the APK and its `.sha256` checksum from the release assets.
+The current version is **[v0.2.7](https://github.com/suyunkai/EVDashboard/releases/tag/v0.2.7)**. Download the APK and its `.sha256` checksum from the release assets.
 
 | Item | Details |
 | --- | --- |
@@ -38,7 +38,7 @@ The current version is **[v0.2.6](https://github.com/suyunkai/EVDashboard/releas
 | Instrument chimes | Read actual CP WAV resources; browse categorized, scrollable sound cards; open a card to preview, replace, restore, or export sounds. |
 | Independent volume | Adjust original or replacement audio from **0% (mute) to 200%**. Derived files preserve the original and replacement sources. |
 | Presets and sharing | Save up to **5 named presets**; import/export configuration and audio together as ZIP; export individual sounds. |
-| Startup apply | Restore configured sound overlays after boot, quick boot, STR wake, or opening the app, subject to identity and parked-state checks. Disabled by default. |
+| Startup apply | Restore configured sound overlays after boot, quick boot, STR wake, or opening the app, after checking the configured address, original hashes and current resource state. Disabled by default. |
 | Interface | Chinese/English switching, compact sound dialogs, preset cards, wide-screen image selection/configuration columns, and task timing/progress. |
 
 Image-processing tools are bundled in the APK. Installed operation does not download image-processing components; sound management requires a local connection to the CP system.
@@ -67,8 +67,8 @@ Adjust independent volume, preview audio, select a replacement, restore defaults
 
 ## Getting started
 
-1. **Check compatibility and prepare recovery.** Confirm a head unit with a **single Antora 1000 chip**, Android 11+, authorized root access, stable power, and sufficient free storage. Keep the app in the foreground and the vehicle parked; prevent sleep or OTA activity during operations.
-2. **Install and grant permissions.** Download the APK from Releases, verify its checksum, install it, and grant the requested Android file-access permissions. Image operations require authorized UID 0 access; sound operations require an accessible CP SSH service and explicit host-identity confirmation.
+1. **Check compatibility and prepare recovery.** Confirm a head unit with a **single Antora 1000 chip**, Android 11+, authorized root access, stable power, and sufficient free storage. Keep image operations in the foreground; prevent sleep or OTA activity during operations.
+2. **Install and grant permissions.** Download the APK from Releases, verify its checksum, install it, and grant the requested Android file-access permissions. Image operations require authorized UID 0 access; sound operations require an accessible CP SSH service and a successful root login.
 3. **Create and preserve a backup.** In Workshop, follow **Identify & back up → Select & modify → Verify & write**. Copy a valid backup to separate storage before making persistent changes. An imported image passing inspection is not automatically safe to flash.
 4. **Configure chimes deliberately.** Connect to CP, read the sound catalog, and open a sound card. Choose a replacement and/or adjust volume, then save locally or explicitly save and apply. Review every rule before enabling automatic recovery, and allow background operation in system settings when needed.
 
@@ -106,14 +106,14 @@ Adjust independent volume, preview audio, select a replacement, restore defaults
 <details>
 <summary><strong>Sound connection, formats, and startup apply</strong></summary>
 
-- Sounds use root SSH, default `198.18.44.2:22`, with temporary bind mounts under `/run/instrument-workshop`. Use the side-by-side **Edit IP** and **Find IP** buttons to enter an address or discover SSH candidates across vehicle subnets. Discovery checks SSH identification without logging in; select a candidate and confirm its host fingerprint. The port remains 22. Changing the address clears host trust and disables startup apply until identity is confirmed again.
-- SSH passwords remain in interface memory and are not persisted. Startup apply requires an empty-password connection. A changed host key requires fresh user confirmation; foreign overlays are neither removed nor treated as originals.
+- Sounds use root SSH, default `198.18.44.2:22`, with temporary bind mounts under `/run/instrument-workshop`. Use the side-by-side **Edit IP** and **Find IP** buttons to enter an address or discover SSH candidates across vehicle subnets. Discovery checks SSH identification without logging in; select a candidate and test the connection. The port remains 22. Changing the address clears its connection record and disables startup apply until you reconnect, read the catalog and enable it again.
+- SSH passwords remain in interface memory and are not persisted. Startup apply requires an empty-password connection. The configured IP is used without host-key pinning, so CP key rotation after reboot does not interrupt recovery. This does not authenticate the server identity; use the correct address on a trusted vehicle network. Root login and original-resource hashes are still checked; foreign overlays are neither removed nor treated as originals.
 - Catalog reads and pre/post-apply checks fetch fresh SHA-256 manifests, reuse matching immutable local audio, and download only missing or changed resources. Hash checks and rollback handling remain in place.
 - Imports accept MP4 audio tracks, MP3, M4A, AAC, Ogg, FLAC, Opus, AMR, and WAV. The local WAV reader converts 8/16/24/32-bit PCM and 32/64-bit floating-point WAV, including supported WAVEFORMATEXTENSIBLE layouts; other encodings use Android MediaCodec and depend on the head unit’s codecs. Imported WAV files may be up to 32 MiB. Output is always 48 kHz, 16-bit PCM WAV with the original sound’s mono/stereo channel count, up to 30 seconds. Duration and metadata are not copied from the original. Original-sound export preserves its container metadata.
 - Apply tasks use a CP-side batch lock and restart only affected playback services that were already running. On failure, they attempt to restore the previous overlay group and service state. An uncertain task is not automatically replayed after SSH disconnection.
 - ZIP files contain `manifest.json` and `audio/<sha256>.wav`. Import validates paths, duplicates, size, version, hashes, format, and channels before replacing local rules. Apply checks the current CP original hashes again to reject incompatible presets.
-- Automatic recovery is **off by default**. When enabled, a foreground service listens for boot, quick boot, system-ready and STR wake events; opening the app also requests a check. The interface is not opened automatically, and the idle monitor holds no wake lock.
-- Duplicate events are merged. Read-only readiness checks use bounded backoff for up to **3 minutes**, requiring an unlocked Android user, an awake head unit, a trusted CP identity/catalog, no unresolved partition-write task, and independent confirmation of P gear and fresh zero speed. Conditions are checked again before applying. A submitted or uncertain apply is not automatically retried; a service restart resumes observation instead of replaying it.
+- Automatic recovery is **off by default**. When enabled, a foreground service listens for boot, quick boot, user unlock/foreground, power-connected, system-ready and STR wake events; starting the app process also requests a check. The interface is not opened automatically, and the idle monitor holds no wake lock.
+- Duplicate events are merged. Read-only readiness checks use bounded backoff for up to **3 minutes** and continue every minute while awake after a timeout. A persisted, best-effort system job also requests monitoring every 15 minutes if it was stopped. Service recreation performs a fresh check. Recovery requires an unlocked Android user, an awake head unit, a matching CP address/catalog, compatible original hashes and no unresolved partition-write task. Sound application has no extra parking dialog or gear-property dependency. Matching resources are not reapplied. An uncertain apply is only verified read-only; if changes are still needed, apply manually before automatic recovery can resume.
 - Open the app once after installation and allow background operation if required by the system. A force stop prevents background broadcasts until the app is reopened. Device-specific background restrictions can still prevent startup; the automatic-recovery page shows the latest result and provides a background-settings shortcut.
 - Muted rules are included when applying a configuration. Review them before enabling automatic application. Older directory-level sound overlays must be restored from the connection page before reading the new catalog.
 

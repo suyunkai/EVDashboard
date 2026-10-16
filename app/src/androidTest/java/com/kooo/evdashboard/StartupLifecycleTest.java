@@ -12,20 +12,20 @@ import org.junit.*;
 import org.junit.runner.RunWith;
 import static org.junit.Assert.*;
 
-/** Broadcast/foreground-service checks only. Missing SSH trust prevents root/CP access. */
+/** Broadcast/foreground-service checks only. An unconfigured documentation IP prevents any CP access. */
 @RunWith(AndroidJUnit4.class)
 public class StartupLifecycleTest {
     private Context context;
     private SharedPreferences prefs;
     private Map<String, ?> before;
-    private final Set<String> changed = Set.of("soundAutoApply", "sshKnown", "startupStatus", "startupBoot", "startupBlockedUntil");
+    private final Set<String> changed = Set.of("soundAutoApply", "cpHost", "sshKnown", "sshVerifiedHost", "startupStatus", "startupBoot", "startupBlockedUntil");
     @Before public void setup() throws Exception {
         context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         prefs = context.getSharedPreferences("settings", 0);
         assertFalse("Disable automatic application before this no-write test", prefs.getBoolean("soundAutoApply", false));
         assertFalse(busy());
         before = prefs.getAll(); stopMonitor();
-        prefs.edit().remove("sshKnown").remove("startupStatus").remove("startupBoot").remove("startupBlockedUntil").commit();
+        prefs.edit().putString("cpHost", "192.0.2.1").remove("sshVerifiedHost").remove("sshKnown").remove("startupStatus").remove("startupBoot").remove("startupBlockedUntil").commit();
     }
     @After public void cleanup() throws Exception {
         if (before == null) return;
@@ -48,7 +48,7 @@ public class StartupLifecycleTest {
             if (info.service.getClassName().equals(AutoApplyService.class.getName()) && info.foreground) return true;
         return false;
     }
-    private void stopMonitor() {context.stopService(new Intent(context, AutoApplyService.class));}
+    private void stopMonitor() {context.getSystemService(android.app.job.JobScheduler.class).cancel(4201); context.stopService(new Intent(context, AutoApplyService.class));}
     private boolean busy() throws Exception {
         Object app = context.getApplicationContext();
         java.lang.reflect.Field field = app.getClass().getDeclaredField("busy"); field.setAccessible(true);
@@ -61,7 +61,7 @@ public class StartupLifecycleTest {
         ServiceInfo service = pm.getServiceInfo(new ComponentName(context, AutoApplyService.class), 0);
         assertFalse(service.exported);
         assertEquals(PackageManager.PERMISSION_GRANTED, pm.checkPermission("android.permission.RECEIVE_BOOT_COMPLETED", context.getPackageName()));
-        for (String action : List.of(Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_MY_PACKAGE_REPLACED, StartupRecovery.STR, "com.ecarx.intent.action.STR_RESUME")) {
+        for (String action : List.of(Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_MY_PACKAGE_REPLACED, Intent.ACTION_USER_FOREGROUND, Intent.ACTION_USER_PRESENT, Intent.ACTION_POWER_CONNECTED, StartupRecovery.STR, "com.ecarx.intent.action.STR_RESUME")) {
             List<ResolveInfo> receivers = pm.queryBroadcastReceivers(new Intent(action).setPackage(context.getPackageName()), 0);
             assertTrue(action, receivers.stream().anyMatch(r -> r.activityInfo.name.equals(BootReceiver.class.getName())));
         }
@@ -85,11 +85,13 @@ public class StartupLifecycleTest {
         assertFalse(busy());
         assertTrue(prefs.getBoolean("soundAutoApply", false));
     }
-    @Test public void restartWithoutAWakeReasonDoesNotReplayAnEarlierAttempt() throws Exception {
+    @Test public void restartWithoutAWakeReasonSchedulesFreshReadinessChecks() throws Exception {
         prefs.edit().putBoolean("soundAutoApply", true).putString("startupStatus", "previous-result").commit();
         context.startForegroundService(new Intent(context, AutoApplyService.class));
         Thread.sleep(2800);
-        assertTrue(running()); assertEquals("previous-result", prefs.getString("startupStatus", ""));
+        assertTrue(running()); assertTrue(prefs.getString("startupStatus", "").startsWith("等待自动恢复条件："));
+        android.app.job.JobInfo job = context.getSystemService(android.app.job.JobScheduler.class).getPendingJob(4201);
+        assertNotNull(job); assertTrue(job.isPersisted());
         assertFalse(busy());
     }
 }

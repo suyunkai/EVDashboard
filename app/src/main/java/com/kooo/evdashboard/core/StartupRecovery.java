@@ -8,12 +8,16 @@ public final class StartupRecovery {
     public static final String STR = "ecarx.intent.action.power.STRMODE";
     public static final Set<String> EVENTS = Set.of(
         "android.intent.action.BOOT_COMPLETED", "android.intent.action.LOCKED_BOOT_COMPLETED",
-        "android.intent.action.USER_UNLOCKED", "android.intent.action.MY_PACKAGE_REPLACED",
+        "android.intent.action.USER_PRESENT", "android.intent.action.USER_FOREGROUND",
+        "android.intent.action.ACTION_POWER_CONNECTED", "android.intent.action.USER_UNLOCKED", "android.intent.action.MY_PACKAGE_REPLACED",
         "android.intent.action.QUICKBOOT_POWERON", "com.htc.intent.action.QUICKBOOT_POWERON",
         "com.ecarx.intent.action.SYSTEM_READY", "com.ecarx.systemui.SYSTEM_UI_READY",
         "com.ecarx.intent.action.ACC_ON", "com.ecarx.intent.action.IGN_ON",
         "com.ecarx.intent.action.POWER_ON", "com.ecarx.intent.action.WAKEUP",
-        "com.ecarx.intent.action.STR_RESUME", STR, "android.intent.action.SCREEN_ON");
+        "com.ecarx.intent.action.STR_RESUME", "ecarx.intent.action.DISPLAY_ON", STR, "android.intent.action.SCREEN_ON");
+    public static boolean accepts(String reason) {
+        return reason != null && (EVENTS.contains(reason) || Set.of("APP_START", "ENABLED", "SERVICE_RESTART", "WATCHDOG", "MONITOR").contains(reason));
+    }
     private long generation, deadline, next, blockedUntil;
     private int retries;
     private boolean waiting, applying;

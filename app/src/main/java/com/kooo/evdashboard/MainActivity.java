@@ -418,17 +418,15 @@ public final class MainActivity extends Activity {
         ui.addRow(g, addressActions);
         ui.divide(g);
         password = field(g, "password", "SSH 密码（留空即空密码；不保存）", "", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD, "留空 = 空密码", "", 0);
-        ui.addRow(g, ui.actionRow("检测并确认 SSH 主机指纹", Ui.Tone.NEUTRAL, click(() -> task("检测 SSH 主机身份", () -> {
-            SshAccess.KeyOffer offer = SshAccess.inspectKey(this);
-            runOnUiThread(() -> confirm("确认 CP 主机指纹", "地址：" + offer.host + "\n请确认这是车内 CP。重启后密钥变化也需要重新确认。\n\n" + offer.fingerprint, () -> {
-                if (!offer.host.equals(SshAccess.host(this))) {error("CP 地址已变化，请重新检测主机指纹"); return;}
-                prefs().edit().putString("sshKnown", offer.host + " " + offer.type + " " + offer.key).putBoolean("sshKeyChanged", false).apply();
-                state.report("已保存当前 CP 主机指纹，后续严格匹配。");
-                updateConnection();
-            }));
-        }))));
+        ui.addRow(g, ui.actionRow("测试 SSH 连接", Ui.Tone.ACCENT, click(() -> {
+            String p = pass(); task("测试 CP SSH 连接", () -> {
+                try (SshAccess ssh = new SshAccess(this)) {ssh.connect(p);}
+                state.report("CP SSH 连接成功，已记住此 IP；重启后的密钥变化无需再次确认。");
+                runOnUiThread(this::updateConnection);
+            });
+        })));
         link.add(g);
-        link.footer(ui.button("恢复旧版覆盖", Ui.Look.TINT, click(() -> {String p = pass(); parked("恢复旧版音效覆盖", "恢复本应用旧版 AVAS、锁车及通用提示音的临时覆盖。", () -> task("恢复旧版音效覆盖", () -> audio().restoreLegacy(p)));})),
+        link.footer(ui.button("恢复旧版覆盖", Ui.Look.TINT, click(() -> {String p = pass(); task("恢复旧版音效覆盖", () -> audio().restoreLegacy(p));})),
             ui.button("读取实际提示音", Ui.Look.PRIMARY, click(() -> {if (soundPanel != null) {soundPanel.refresh(); select(0, 1);}})));
         try {
             soundPanel = new SoundPanel(this, ui, state, this::pass);
@@ -444,9 +442,9 @@ public final class MainActivity extends Activity {
     private void updateConnection() {
         if (fingerprintChip == null) return;
         boolean known = SshAccess.trusted(this);
-        ui.setChip(fingerprintChip, known ? "指纹已确认" : "指纹未确认", known ? Ui.Tone.OK : Ui.Tone.WARN);
+        ui.setChip(fingerprintChip, known ? "连接已验证" : "待连接", known ? Ui.Tone.OK : Ui.Tone.WARN);
         cpAddressText.setText(SshAccess.host(this) + " : 22  ·  root");
-        navSub[0][0].setText(SshAccess.host(this) + " · " + (known ? "指纹已确认" : "指纹未确认"));
+        navSub[0][0].setText(SshAccess.host(this) + " · " + (known ? "连接已验证" : "待连接"));
     }
 
     // ---------------------------------------------------------------- workshop panes
@@ -533,7 +531,7 @@ public final class MainActivity extends Activity {
 
         // 2 · write and delete
         Pane danger = new Pane(1, 2);
-        danger.add(ui.callout("风险：", "校验通过不能保证零风险或 A/B 自动回退。写入可能导致仪表损坏、需要售后自费维修；必须保持驻车、供电稳定、应用前台且无 OTA。", Ui.Tone.DANGER));
+        danger.add(ui.callout("风险：", "校验通过不能保证零风险或 A/B 自动回退。写入可能导致仪表损坏、需要售后自费维修；必须保持供电稳定、应用前台且无 OTA。", Ui.Tone.DANGER));
         LinearLayout current = ui.group();
         dangerInfo = ui.text("请先在第 2 步“选择与修改”中选择一份镜像", 28, ui.ink, false);
         dangerInfo.setTag("selected-image-write-info");
@@ -669,7 +667,7 @@ public final class MainActivity extends Activity {
         LinearLayout content = ui.vertical();
         EditText address = ui.field(content, "CP IPv4 地址", SshAccess.host(this), InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI, CpAddress.DEFAULT, "", 0);
         new UiDialog(this, ui, "修改 CP 连接地址").view(content)
-            .message("仅影响仪表提示音的 SSH 连接；端口 22，用户 root。不会改变本机分区识别或写入目标。地址变化后需要重新确认指纹，自动覆盖会关闭。")
+            .message("仅影响仪表提示音的 SSH 连接；端口 22，用户 root。不会改变本机分区识别或写入目标。地址变化后需要重新连接并读取目录，自动覆盖会关闭。")
             .negative("取消", null).positive("保存地址", Ui.Look.PRIMARY, () -> {
                 saveCpAddress(address.getText().toString());
             }).show();
@@ -679,7 +677,7 @@ public final class MainActivity extends Activity {
         try {
             FilesEx.require(!state.busy.get(), "已有任务运行，请结束后再修改");
             String host = CpAddress.parse(address);
-            if (!host.equals(SshAccess.host(this))) prefs().edit().putString("cpHost", host).remove("sshKnown").putBoolean("sshKeyChanged", false).putBoolean("reapply", false).putBoolean("soundAutoApply", false).apply();
+            if (!host.equals(SshAccess.host(this))) prefs().edit().putString("cpHost", host).remove("sshKnown").remove("sshVerifiedHost").putBoolean("sshKeyChanged", false).putBoolean("reapply", false).putBoolean("soundAutoApply", false).apply();
             render(getResources().getConfiguration());
         } catch (Exception e) {error(e.getMessage());}
     }
@@ -700,7 +698,7 @@ public final class MainActivity extends Activity {
         LinearLayout content = ui.vertical(); content.addView(counts, ui.lp(Ui.MATCH, Ui.WRAP));
         content.addView(bar, ui.lp(Ui.MATCH, ui.px(24), 0, ui.px(16), 0, 0));
         discoveryDialog = new UiDialog(this, ui, "探测 CP IP 地址")
-            .message("只检查候选地址的 SSH 响应，不登录。发现后请选择地址，再确认主机指纹。")
+            .message("只检查候选地址的 SSH 响应，不登录。发现后请选择地址，再测试 SSH 连接。")
             .view(content).negative("取消", this::stopDiscovery).onCancel(this::stopDiscovery).show();
         try {
             state.submit("探测 CP IP 地址", () -> {
@@ -733,7 +731,7 @@ public final class MainActivity extends Activity {
         if (state.busy.get()) {clock.postDelayed(() -> finishDiscovery(scan, result), 100); return;}
         cpDiscovery = null;
         if (discoveryDialog != null) {discoveryDialog.dismiss(); discoveryDialog = null;}
-        String note = "SSH 响应不能确认仪表身份；选用不同地址会清除旧指纹并关闭自动覆盖。";
+        String note = "SSH 响应不能确认仪表身份；选用不同地址会清除旧连接记录并关闭自动覆盖。";
         if (result.timedOut()) note = "探测时间已到，部分地址尚未检查，可重新探测。\n" + note;
         if (result.endpoints().isEmpty()) {
             discoveryDialog = new UiDialog(this, ui, "未发现 SSH 候选地址")
@@ -754,7 +752,7 @@ public final class MainActivity extends Activity {
     private void beginExport() {
         withStorage("只读识别导出目标", () -> {
             DeviceInfo target = state.workshop.identify();
-            runOnUiThread(() -> confirm("确认完整备份的目标", target.summary() + "\n\n将只读复制以上当前 CP 分区，不修改车辆。原有文件不覆盖，完成后请选择原始或已修改镜像。请保持驻车、供电稳定且无 OTA。", () -> withStorage("导出完整分区", () -> {
+            runOnUiThread(() -> confirm("确认完整备份的目标", target.summary() + "\n\n将只读复制以上当前 CP 分区，不修改车辆。原有文件不覆盖，完成后请选择原始或已修改镜像。请保持供电稳定且无 OTA。", () -> withStorage("导出完整分区", () -> {
                 target.same(state.workshop.identify());
                 ImageRecord record = state.workshop.exportPartition();
                 state.selected = record.id;
@@ -768,16 +766,6 @@ public final class MainActivity extends Activity {
 
     private void confirm(String title, String message, Runnable yes) {
         new UiDialog(this, ui, title).message(message).negative("取消", null).positive("确认", Ui.Look.PRIMARY, yes).show();
-    }
-
-    void parked(String title, String warning, Runnable yes) {
-        LinearLayout l = ui.vertical();
-        l.addView(ui.text(warning, 30, ui.ink, false), ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(12)));
-        Ui.Toggle c = ui.checkRow(l, "车辆已 P 挡驻车，期间不会驾驶", false);
-        UiDialog dialog = new UiDialog(this, ui, title).view(l).negative("取消", null).positive("确认应用", Ui.Look.PRIMARY, yes);
-        dialog.positiveEnabled(false);
-        c.setOnCheckedChangeListener((b, on) -> dialog.positiveEnabled(on));
-        dialog.show();
     }
 
     private void classify(ImageRecord r) {
@@ -830,18 +818,17 @@ public final class MainActivity extends Activity {
             dialog.heading("操作要求", ui.ink).message("全程保持车辆通电和稳定供电，禁止断电、休眠、重启或 OTA 升级。请保持本应用在前台，尽量不要运行其他软件，尤其是高负载任务；不要强行停止应用。\n\n将写入重新识别出的当前 CP 槽位，不是 Android 槽位。完成全量回读前不要离开；本应用不会自动切槽或重启。");
             LinearLayout checks = ui.vertical();
             checks.setPadding(0, ui.px(8), 0, 0);
-            Ui.Toggle risk = ui.checkRow(checks, "我已理解并愿意承担损坏及售后自费维修风险", false), parked = ui.checkRow(checks, "车辆 P 挡驻车，期间不会驾驶", false), power = ui.checkRow(checks, "全程保持稳定供电，不休眠、不重启", false), ota = ui.checkRow(checks, "无 OTA / 其他刷写，保持本应用前台运行", false);
+            Ui.Toggle risk = ui.checkRow(checks, "我已理解并愿意承担损坏及售后自费维修风险", false), power = ui.checkRow(checks, "全程保持稳定供电，不休眠、不重启", false), ota = ui.checkRow(checks, "无 OTA / 其他刷写，保持本应用前台运行", false);
             Ui.Toggle sameContent = ui.checkRow(checks, "仅测试：允许与当前分区完全相同的镜像重写（无功能收益，仍有刷写风险）", false);
             dialog.view(checks).negative("取消", null).positive("核验后开始写入", Ui.Look.DANGER, () -> {
                 boolean test = sameContent.isChecked();
-                Runnable write = () -> withStorage(test ? "同内容受控重写测试" : "受控写入 CP 分区", () -> state.workshop.flash(r, true, true, true, true, test));
+                Runnable write = () -> withStorage(test ? "同内容受控重写测试" : "受控写入 CP 分区", () -> state.workshop.flash(r, true, true, true, test));
                 if (test) confirm("再次确认同内容重写测试", "这不是必要升级，不会带来功能变化。即使内容相同，重新写入仍可能因断电或硬件故障损坏仪表，可能需要售后自费维修。\n\n仅在候选与当前分区摘要完全相同且其他全部校验通过时执行；不跳过备份和全量回读。确定承担风险并测试？", write);
                 else write.run();
             });
             dialog.positiveEnabled(false);
-            CompoundButton.OnCheckedChangeListener change = (b, on) -> dialog.positiveEnabled(risk.isChecked() && parked.isChecked() && power.isChecked() && ota.isChecked());
+            CompoundButton.OnCheckedChangeListener change = (b, on) -> dialog.positiveEnabled(risk.isChecked() && power.isChecked() && ota.isChecked());
             risk.setOnCheckedChangeListener(change);
-            parked.setOnCheckedChangeListener(change);
             power.setOnCheckedChangeListener(change);
             ota.setOnCheckedChangeListener(change);
             dialog.show();

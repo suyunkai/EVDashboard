@@ -24,7 +24,7 @@ public class SoundUiTest {
     private MainActivity activity;
     private File root;
     private byte[] oldSnapshot, oldRules;
-    private String oldKnown, oldLanguage;
+    private String oldKnown, oldVerified, oldLanguage;
     private boolean oldAuto;
     private SoundStore store;
     private String lock;
@@ -33,8 +33,8 @@ public class SoundUiTest {
     private final Set<String> userNames = new HashSet<>();
     @Before public void setup() throws Exception {
         instrumentation = InstrumentationRegistry.getInstrumentation(); context = instrumentation.getTargetContext();
-        SharedPreferences p = context.getSharedPreferences("settings",0); oldKnown = p.getString("sshKnown",null); oldAuto = p.getBoolean("soundAutoApply",false); oldLanguage = p.getString("uiLanguage",null);
-        p.edit().remove("sshKnown").putBoolean("soundAutoApply",false).putString("uiLanguage","zh").commit();
+        SharedPreferences p = context.getSharedPreferences("settings",0); oldKnown = p.getString("sshKnown",null); oldVerified = p.getString("sshVerifiedHost",null); oldAuto = p.getBoolean("soundAutoApply",false); oldLanguage = p.getString("uiLanguage",null);
+        p.edit().remove("sshKnown").remove("sshVerifiedHost").putBoolean("soundAutoApply",false).putString("uiLanguage","zh").commit();
         root = new File(context.getFilesDir(),"instrument-sounds"); root.mkdirs();
         oldSnapshot = backup("snapshot.json"); oldRules = backup("rules.json");
         SoundCatalog catalog;
@@ -62,7 +62,7 @@ public class SoundUiTest {
     @After public void cleanup() throws Exception {
         if(activity!=null) {instrumentation.runOnMainSync(()->activity.finish());instrumentation.waitForIdleSync();}
         if(root!=null) {restore("snapshot.json",oldSnapshot);restore("rules.json",oldRules);for(String name:addedAssets)Files.deleteIfExists(new File(root,"assets/"+name).toPath());for(String id:addedPresets)store.deletePreset(id);}
-        if(context!=null) {SharedPreferences.Editor e=context.getSharedPreferences("settings",0).edit().putBoolean("soundAutoApply",oldAuto);if(oldKnown==null)e.remove("sshKnown");else e.putString("sshKnown",oldKnown);if(oldLanguage==null)e.remove("uiLanguage");else e.putString("uiLanguage",oldLanguage);e.commit();}
+        if(context!=null) {SharedPreferences.Editor e=context.getSharedPreferences("settings",0).edit().putBoolean("soundAutoApply",oldAuto);if(oldVerified==null)e.remove("sshVerifiedHost");else e.putString("sshVerifiedHost",oldVerified);if(oldKnown==null)e.remove("sshKnown");else e.putString("sshKnown",oldKnown);if(oldLanguage==null)e.remove("uiLanguage");else e.putString("uiLanguage",oldLanguage);e.commit();}
     }
     private void restore(String name,byte[] data)throws Exception{File f=new File(root,name);if(data==null)Files.deleteIfExists(f.toPath());else Files.write(f.toPath(),data);}
     private TextView find(View view,String label) {if(view instanceof TextView t&&t.isShown()&&t.getText().toString().equals(label))return t;if(view instanceof ViewGroup g)for(int i=0;i<g.getChildCount();i++){TextView found=find(g.getChildAt(i),label);if(found!=null)return found;}return null;}

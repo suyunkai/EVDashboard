@@ -69,16 +69,16 @@ final class SoundPanel implements AutoCloseable {
         automaticRow = automatic;
         automatic.toggle.setOnCheckedChangeListener((button, enabled) -> {
             if (enabled && (!SshAccess.trusted(activity) || entries.isEmpty() || !password.get().isEmpty())) {
-                automatic.toggle.setChecked(false); activity.error("请先使用空密码连接、确认主机指纹并读取声音目录；自动连接不保存 SSH 密码"); return;
+                automatic.toggle.setChecked(false); activity.error("请先使用空密码连接并读取声音目录；自动连接不保存 SSH 密码"); return;
             }
             preferences().edit().putBoolean("soundAutoApply", enabled).apply();
             if (enabled) AutoApplyService.start(activity, "ENABLED"); else AutoApplyService.stop(activity);
         });
         root.addView(automatic.view);
-        root.addView(ui.text("启用后在后台监听开机、快速启动及 STR 唤醒，打开应用也会检查。重复事件合并；最多等待 3 分钟确认 CP 身份、P 挡及零车速，再恢复临时覆盖。覆盖失败不会自动重试。", 28, ui.muted, false), ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(22), 0, ui.px(16)));
+        root.addView(ui.text("启用后监听开机、用户切换和 STR 唤醒。CP 尚未就绪会等待重连，超时后仍定期检查；仅在当前资源与配置不一致时恢复。SSH 密钥变化无需确认，音效应用不再弹出驻车确认。", 28, ui.muted, false), ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(22), 0, ui.px(16)));
         automaticStatus = ui.text(preferences().getString("startupStatus", "等待开机或唤醒事件"), 25, ui.muted, false);
         automaticStatus.setTag("automatic-startup-status"); root.addView(automaticStatus, ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(16)));
-        root.addView(ui.text("请先打开应用一次并允许后台运行。强制停止后需重新打开；部分系统需在后台运行设置中放行。监听服务空闲时不持有唤醒锁，也不会自动打开界面。", 25, ui.muted, false), ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(20)));
+        root.addView(ui.text("请先打开应用一次并允许后台运行。亮屏时每分钟核对配置，系统定期任务负责补启监听服务；强制停止后仍需重新打开应用。休眠时不主动唤醒车机，空闲时不持有唤醒锁。", 25, ui.muted, false), ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(20)));
         root.addView(ui.button("后台运行设置", Ui.Look.TINT, v -> {
             try {activity.startActivity(new android.content.Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));}
             catch (RuntimeException error) {activity.error("此系统未提供后台运行设置入口，请在系统设置中允许后台运行");}
@@ -297,7 +297,7 @@ final class SoundPanel implements AutoCloseable {
                 if (apply) new AudioEngine(activity, state::report).apply(pass, false, edits.keySet());
                 else state.report("此卡片的音频与音量配置已保存到本机，尚未应用到 CP。");
             });
-            if (apply) activity.parked("应用声音配置", "应用此卡片中各素材的配置，短暂重启所属播放服务。共用文件的提醒会一起变化。", save); else save.run();
+            save.run();
         } catch (Exception e) {activity.error(e.getMessage());}
     }
     private void chooseReplacement(SoundStore.Entry entry, String name, List<SoundStore.Entry> sounds, int selected, Map<String, SoundStore.Rule> drafts) {
@@ -373,11 +373,11 @@ final class SoundPanel implements AutoCloseable {
         new UiDialog(activity, ui, I18n.literal(preset.name))
             .items(new String[]{"载入配置", "载入并应用到 CP", "删除此预设"}, index -> {
                 if (index == 0) job("载入预设", () -> {store.loadPreset(preset.id); state.report("预设已载入，点击应用全部配置后切换 CP。");});
-                else if (index == 1) {String pass = password.get(); activity.parked("切换声音预设", "将应用该预设，并还原预设未包含的本应用覆盖。", () -> job("切换声音预设", () -> {store.loadPreset(preset.id); new AudioEngine(activity, state::report).apply(pass, false);}));}
+                else if (index == 1) {String pass = password.get(); job("切换声音预设", () -> {store.loadPreset(preset.id); new AudioEngine(activity, state::report).apply(pass, false);});}
                 else new UiDialog(activity, ui, "删除预设？").message(I18n.literal(preset.name)).negative("取消", null).positive("删除", Ui.Look.DANGER, () -> job("删除声音预设", () -> store.deletePreset(preset.id))).show();
             }).negative("关闭", null).show();
     }
-    private void applyAll() {String pass = password.get(); activity.parked("应用全部声音配置", "应用当前替换与音量规则，并还原规则未包含的本应用覆盖。", () -> job("应用全部仪表提示音", () -> new AudioEngine(activity, state::report).apply(pass, false)));}
+    private void applyAll() {String pass = password.get(); job("应用全部仪表提示音", () -> new AudioEngine(activity, state::report).apply(pass, false));}
     private void exportZip() {save("instrument-sounds.zip", file -> job("导出声音配置 ZIP", () -> {exclusive(file, store::exportZip); state.report("配置与相关音频已导出：" + file);}));}
     private void importZip() {
         if (!activity.requireStorage() || state.busy.get()) return; closePicker(); picker = new LocalFilePicker(activity, ui);

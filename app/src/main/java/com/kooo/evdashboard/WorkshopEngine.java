@@ -111,12 +111,12 @@ public final class WorkshopEngine {
         }
         throw new IOException("没有当前分区的有效本机导出备份，请先导出；OTA 或未知变更后必须重新导出");
     }
-    void flash(ImageRecord candidate,boolean parked,boolean power,boolean noOta,boolean acceptsRisk)throws Exception{
-        flash(candidate,parked,power,noOta,acceptsRisk,false);
+    void flash(ImageRecord candidate,boolean power,boolean noOta,boolean acceptsRisk)throws Exception{
+        flash(candidate,power,noOta,acceptsRisk,false);
     }
-    void flash(ImageRecord candidate,boolean parked,boolean power,boolean noOta,boolean acceptsRisk,boolean sameContentTest)throws Exception{
+    void flash(ImageRecord candidate,boolean power,boolean noOta,boolean acceptsRisk,boolean sameContentTest)throws Exception{
         FilesEx.require(!receipt("pending-write.json").exists(),"有未完成刷写任务，必须先核验；不会启动第二次写入");
-        FilesEx.require(parked&&power&&noOta&&acceptsRisk,"请确认损坏及自费维修风险、P 挡驻车、稳定供电、无 OTA 且不会休眠");DeviceInfo d=identify();FilesEx.require(library.intact(candidate),"候选文件已变化");verifyGenerated(candidate);String live=partitionHash(d);ImageRecord baseline=backupFor(d,live);compatible(baseline,candidate);d.same(DeviceInfo.detect(root));space(2L*FipImage.PARTITION_BYTES+256*1024*1024L);
+        FilesEx.require(power&&noOta&&acceptsRisk,"请确认损坏及自费维修风险、稳定供电、无 OTA 且不会休眠");DeviceInfo d=identify();FilesEx.require(library.intact(candidate),"候选文件已变化");verifyGenerated(candidate);String live=partitionHash(d);ImageRecord baseline=backupFor(d,live);compatible(baseline,candidate);d.same(DeviceInfo.detect(root));space(2L*FipImage.PARTITION_BYTES+256*1024*1024L);
         WritePlan.checkContentMode(candidate.sha,live,sameContentTest);
         String id=UUID.randomUUID().toString();String job="/data/local/evdashboard/jobs/"+id;File localJob=new File(library.tasks,id);FilesEx.require(localJob.mkdir(),"无法创建任务记录");
         String backupId=baseline.id;if(!baseline.origin.equals("DEVICE")){JSONObject previous=new JSONObject(FilesEx.readText(receipt("last-write.json")));backupId=previous.getString("backupId");}

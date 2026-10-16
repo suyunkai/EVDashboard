@@ -12,17 +12,18 @@ import java.util.concurrent.*;
 public final class AutoApplyService extends Service {
     private static final String CHANNEL = "sound-recovery", REASON = "reason";
     private final Handler handler = new Handler(Looper.getMainLooper());
-    private final ExecutorService checks = Executors.newSingleThreadExecutor();
-    private final Runnable tick = this::check;
+    private Future<?> checkTask;
+    private final Runnable tick = this::check, pulse = this::poll;
     private AppState state;
     private SharedPreferences prefs;
     private StartupRecovery recovery;
-    private boolean checking, destroyed;
+    private boolean checking;
+    private volatile boolean destroyed;
     private String lastIssue = "", message = "等待开机或唤醒事件";
     private int bootCount;
     private final SharedPreferences.OnSharedPreferenceChangeListener settings = (p, key) -> {
         if ("soundAutoApply".equals(key)) handler.post(() -> {
-            if (!destroyed && !enabled(this)) {status("自动恢复已关闭，请检查主机身份或设置"); stopSelf();}
+            if (!destroyed && !enabled(this)) {status("自动恢复已关闭"); RecoveryJobService.cancel(this); stopSelf();}
         });
     };
     private final BroadcastReceiver events = new BroadcastReceiver() {
@@ -38,13 +39,14 @@ public final class AutoApplyService extends Service {
     }
     static void start(Context context, String reason) {
         if (!enabled(context)) return;
+        RecoveryJobService.schedule(context);
         try {context.startForegroundService(new Intent(context, AutoApplyService.class).putExtra(REASON, reason));}
         catch (RuntimeException error) {
             Log.w("EVDashboard", "Background sound recovery could not start", error);
             context.getSharedPreferences("settings", 0).edit().putString("startupStatus", "后台启动被系统限制，请打开应用并允许后台运行").apply();
         }
     }
-    static void stop(Context context) {context.stopService(new Intent(context, AutoApplyService.class));}
+    static void stop(Context context) {RecoveryJobService.cancel(context); context.stopService(new Intent(context, AutoApplyService.class));}
     @Override public void onCreate() {
         super.onCreate(); state = (AppState) getApplication(); prefs = getSharedPreferences("settings", 0);
         bootCount = Settings.Global.getInt(getContentResolver(), Settings.Global.BOOT_COUNT, -1);
@@ -57,13 +59,15 @@ public final class AutoApplyService extends Service {
         if (Build.VERSION.SDK_INT >= 33) registerReceiver(events, filter, Context.RECEIVER_EXPORTED);
         else registerWakeReceiver(filter);
         prefs.registerOnSharedPreferenceChangeListener(settings);
+        handler.postDelayed(pulse, 60_000);
     }
     @android.annotation.SuppressLint("UnspecifiedRegisterReceiverFlag")
     private void registerWakeReceiver(IntentFilter filter) {registerReceiver(events, filter);}
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
         if (!enabled(this)) {stopSelf(); return START_NOT_STICKY;}
-        // A sticky recreation only resumes observation, never replays an uncertain apply.
-        if (intent != null) request(intent.getStringExtra(REASON));
+        RecoveryJobService.schedule(this);
+        String reason = intent == null ? null : intent.getStringExtra(REASON);
+        request(reason == null ? "SERVICE_RESTART" : reason);
         return START_STICKY;
     }
     private Notification notification() {
@@ -75,16 +79,30 @@ public final class AutoApplyService extends Service {
     }
     private void status(String text) {
         if (destroyed) return;
-        message = text; prefs.edit().putString("startupStatus", text).apply();
+        message = text;
+        try {
+            java.io.File log = new java.io.File(getFilesDir(), "startup.log");
+            String history = log.isFile() ? com.kooo.evdashboard.core.FilesEx.readText(log) : "";
+            if (history.length() > 32_000) history = history.substring(history.length() - 24_000);
+            com.kooo.evdashboard.core.FilesEx.atomicText(log, history + new java.util.Date() + "  " + text + "\n");
+        } catch (Exception ignored) {}
+        prefs.edit().putString("startupStatus", text).apply();
         getSystemService(NotificationManager.class).notify(2, notification());
         sendBroadcast(new Intent("com.kooo.evdashboard.STATUS").setPackage(getPackageName()));
     }
     private void request(String reason) {
         if (!enabled(this)) {stopSelf(); return;}
-        if (!(StartupRecovery.EVENTS.contains(reason == null ? "" : reason) || "APP_START".equals(reason) || "ENABLED".equals(reason))) return;
+        if (!StartupRecovery.accepts(reason)) return;
         if (recovery.request(SystemClock.elapsedRealtime())) {
+            prefs.edit().putString("startupReason", reason).apply();
             lastIssue = ""; status("等待车机与 CP 就绪，准备恢复声音配置"); schedule();
         }
+    }
+    private void poll() {
+        if (destroyed || !enabled(this)) {stopSelf(); return;}
+        PowerManager power = getSystemService(PowerManager.class);
+        if (power != null && power.isInteractive()) request("MONITOR");
+        handler.postDelayed(pulse, 60_000);
     }
     private void schedule() {
         handler.removeCallbacks(tick);
@@ -98,31 +116,35 @@ public final class AutoApplyService extends Service {
     private void check() {
         long now = SystemClock.elapsedRealtime();
         if (!enabled(this)) {stopSelf(); return;}
-        if (recovery.expired(now)) {finish("本次自动恢复已跳过：" + lastIssue); return;}
+        if (recovery.expired(now)) {finish("CP 暂未就绪，稍后继续检查：" + lastIssue); return;}
         if (!recovery.due(now)) {schedule(); return;}
         if (checking || state.busy.get()) {lastIssue = "等待当前任务完成"; recovery.defer(now); schedule(); return;}
         checking = true; long token = recovery.generation();
         handler.postDelayed(tick, recovery.remaining(now));
-        checks.execute(() -> {
-            Exception failure = null;
+        checkTask = state.executor.submit(() -> {
+            Exception failure = null; boolean needed = false;
             PowerManager.WakeLock wake = getSystemService(PowerManager.class).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "EVDashboard:recovery-check");
-            try {wake.acquire(45_000); new AudioEngine(this, ignored -> {}).prepareAutomatic();}
+            try {
+                if (destroyed || !recovery.current(token)) throw new java.io.IOException("恢复检查已取消");
+                wake.acquire(45_000); needed = new AudioEngine(this, ignored -> {}, false).prepareAutomatic();
+            }
             catch (Exception error) {failure = error;}
             finally {if (wake.isHeld()) wake.release();}
-            final Exception result = failure;
-            handler.post(() -> ready(token, result));
+            final Exception result = failure; final boolean changes = needed;
+            handler.post(() -> ready(token, result, changes));
         });
     }
-    private void ready(long token, Exception error) {
+    private void ready(long token, Exception error, boolean needed) {
         checking = false;
         if (destroyed || !enabled(this) || !recovery.current(token)) return;
         handler.removeCallbacks(tick);
         long now = SystemClock.elapsedRealtime();
-        if (recovery.expired(now)) {finish("本次自动恢复已跳过：" + (error == null ? lastIssue : error.getMessage())); return;}
+        if (recovery.expired(now)) {finish("CP 暂未就绪，稍后继续检查：" + (error == null ? lastIssue : error.getMessage())); return;}
         if (error != null || state.busy.get()) {
             lastIssue = error == null ? "等待当前任务完成" : String.valueOf(error.getMessage());
             status("等待自动恢复条件：" + lastIssue); recovery.defer(now); schedule(); return;
         }
+        if (!needed) {finish("当前声音已符合配置，继续监听与定期检查"); return;}
         if (!recovery.beginApply(token, now)) {schedule(); return;}
         status("正在恢复声音配置");
         try {
@@ -131,13 +153,13 @@ public final class AutoApplyService extends Service {
                 try {new AudioEngine(this, state::report).apply("", true); success = true;}
                 finally {
                     boolean done = success;
-                    handler.post(() -> {if (!destroyed) finish(done ? "声音配置已恢复，继续监听唤醒" : "自动恢复未完成，请查看任务记录；不会自动重试覆盖");});
+                    handler.post(() -> {if (!destroyed) finish(done ? "声音配置已恢复，继续监听唤醒" : "自动恢复未完成，请查看任务记录；继续只读核对结果");});
                 }
             });
         } catch (Exception failure) {finish("自动恢复未开始：" + failure.getMessage());}
     }
     @Override public void onDestroy() {
-        destroyed = true; handler.removeCallbacksAndMessages(null); checks.shutdownNow();
+        destroyed = true; handler.removeCallbacksAndMessages(null); if (checkTask != null) checkTask.cancel(true);
         prefs.unregisterOnSharedPreferenceChangeListener(settings); unregisterReceiver(events);
         stopForeground(STOP_FOREGROUND_REMOVE); super.onDestroy();
     }

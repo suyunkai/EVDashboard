@@ -66,6 +66,8 @@ public final class MainActivity extends Activity {
     private int previewFocusResult = -1;
     private Runnable previewDone;
     private LocalFilePicker filePicker;
+    private CpDiscovery cpDiscovery;
+    private UiDialog discoveryDialog;
     private final Handler clock = new Handler(Looper.getMainLooper());
     private final Runnable progressTick = new Runnable() {
         @Override public void run() {updateStatus(); clock.postDelayed(this, 1000);}
@@ -97,12 +99,13 @@ public final class MainActivity extends Activity {
 
     @Override protected void onResume() {super.onResume(); clock.removeCallbacks(progressTick); clock.post(progressTick); updatePermissions(); try {state.storage(); refreshLibrary();} catch (Exception ignored) {}}
     @Override protected void onPause() {clock.removeCallbacks(progressTick); stopPreview(); super.onPause();}
-    @Override protected void onDestroy() {clock.removeCallbacks(progressTick); if (filePicker != null) filePicker.close(); unregisterReceiver(updates); stopPreview(); if (soundPanel != null) soundPanel.close(); super.onDestroy();}
+    @Override protected void onDestroy() {stopDiscovery(); clock.removeCallbacks(progressTick); if (filePicker != null) filePicker.close(); unregisterReceiver(updates); stopPreview(); if (soundPanel != null) soundPanel.close(); super.onDestroy();}
     @Override public void onConfigurationChanged(android.content.res.Configuration config) {super.onConfigurationChanged(config); render(config);}
 
     // ---------------------------------------------------------------- layout
 
     private void render(android.content.res.Configuration config) {
+        stopDiscovery();
         if (filePicker != null) {filePicker.close(); filePicker = null;}
         if (soundPanel != null) soundPanel.close();
         ui = new Ui(this, config);
@@ -403,7 +406,16 @@ public final class MainActivity extends Activity {
         LinearLayout g = ui.group();
         cpAddressText = ui.mono("", 32, ui.ink);
         ui.addRow(g, ui.infoRow(cpAddressText));
-        ui.addRow(g, ui.actionRow("修改 CP IP 地址", Ui.Tone.ACCENT, click(this::editCpAddress)));
+        LinearLayout addressActions = ui.horizontal();
+        addressActions.setPadding(ui.px(28), ui.px(12), ui.px(28), ui.px(20));
+        Button editAddress = ui.button("修改 IP", Ui.Look.TINT, click(this::editCpAddress));
+        Button discoverAddress = ui.button("探测 IP", Ui.Look.TINT, click(this::discoverCpAddress));
+        editAddress.setTag("cp-edit-address"); discoverAddress.setTag("cp-discover-address");
+        int buttonHeight = Math.max(ui.px(96), Math.round(48 * getResources().getDisplayMetrics().density));
+        addressActions.addView(editAddress, ui.lp(0, buttonHeight, 1));
+        LinearLayout.LayoutParams discoverLayout = ui.lp(0, buttonHeight, 1); discoverLayout.leftMargin = ui.px(16);
+        addressActions.addView(discoverAddress, discoverLayout);
+        ui.addRow(g, addressActions);
         ui.divide(g);
         password = field(g, "password", "SSH 密码（留空即空密码；不保存）", "", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD, "留空 = 空密码", "", 0);
         ui.addRow(g, ui.actionRow("检测并确认 SSH 主机指纹", Ui.Tone.NEUTRAL, click(() -> task("检测 SSH 主机身份", () -> {
@@ -524,6 +536,7 @@ public final class MainActivity extends Activity {
         danger.add(ui.callout("风险：", "校验通过不能保证零风险或 A/B 自动回退。写入可能导致仪表损坏、需要售后自费维修；必须保持驻车、供电稳定、应用前台且无 OTA。", Ui.Tone.DANGER));
         LinearLayout current = ui.group();
         dangerInfo = ui.text("请先在第 2 步“选择与修改”中选择一份镜像", 28, ui.ink, false);
+        dangerInfo.setTag("selected-image-write-info");
         ui.addRow(current, ui.infoRow(dangerInfo));
         danger.caption("所选镜像");
         danger.add(current);
@@ -577,7 +590,9 @@ public final class MainActivity extends Activity {
                 ImageRecord r = state.library.get(state.selected);
                 selectedText.setText(I18n.literal(r.name) + "\n" + r.categoryLabel() + "\nSSH 配置：" + sshLabel(r.socket) + "  / root 密码：" + passwordLabel(r.password) + "\n允许空密码参数：" + (r.blankAllowed ? "是" : "否 / 未知")
                     + "\n固件基线：" + (r.build.isEmpty() ? "未知" : r.build.substring(0, 12)) + "\nSHA-256：" + r.sha + "\n" + r.message);
-                dangerInfo.setText(I18n.literal(r.name) + "\n" + r.categoryLabel() + "\n" + (r.validated ? "结构已校验，可进入写入确认；仍需确认本机备份和兼容性" : "尚未通过结构校验：写入已锁定，请先重新校验"));
+                dangerInfo.setText(I18n.literal(r.name) + "\n" + r.categoryLabel()
+                    + "\nSSH 配置：" + sshLabel(r.validated ? r.socket : "UNKNOWN") + "  / root 密码：" + passwordLabel(r.validated ? r.password : "UNKNOWN")
+                    + "\n" + (r.validated ? "结构已校验，可进入写入确认；仍需确认本机备份和兼容性" : "尚未通过结构校验：写入已锁定，请先重新校验"));
                 writeRow.setAlpha(r.validated ? 1f : .5f);
             }
         } catch (Exception e) {
@@ -656,13 +671,84 @@ public final class MainActivity extends Activity {
         new UiDialog(this, ui, "修改 CP 连接地址").view(content)
             .message("仅影响仪表提示音的 SSH 连接；端口 22，用户 root。不会改变本机分区识别或写入目标。地址变化后需要重新确认指纹，自动覆盖会关闭。")
             .negative("取消", null).positive("保存地址", Ui.Look.PRIMARY, () -> {
-                try {
-                    FilesEx.require(!state.busy.get(), "已有任务运行，请结束后再修改");
-                    String host = CpAddress.parse(address.getText().toString());
-                    if (!host.equals(SshAccess.host(this))) prefs().edit().putString("cpHost", host).remove("sshKnown").putBoolean("sshKeyChanged", false).putBoolean("reapply", false).putBoolean("soundAutoApply", false).apply();
-                    render(getResources().getConfiguration());
-                } catch (Exception e) {error(e.getMessage());}
+                saveCpAddress(address.getText().toString());
             }).show();
+    }
+
+    private void saveCpAddress(String address) {
+        try {
+            FilesEx.require(!state.busy.get(), "已有任务运行，请结束后再修改");
+            String host = CpAddress.parse(address);
+            if (!host.equals(SshAccess.host(this))) prefs().edit().putString("cpHost", host).remove("sshKnown").putBoolean("sshKeyChanged", false).putBoolean("reapply", false).putBoolean("soundAutoApply", false).apply();
+            render(getResources().getConfiguration());
+        } catch (Exception e) {error(e.getMessage());}
+    }
+
+    private void stopDiscovery() {
+        if (cpDiscovery != null) {cpDiscovery.cancel(); cpDiscovery = null;}
+        if (discoveryDialog != null) {UiDialog dialog = discoveryDialog; discoveryDialog = null; dialog.dismiss();}
+    }
+
+    private void discoverCpAddress() {
+        if (state.busy.get()) {error("已有任务运行，请等待完成"); return;}
+        stopDiscovery();
+        CpDiscovery scan = new CpDiscovery(); cpDiscovery = scan;
+        String configured = SshAccess.host(this);
+        TextView counts = ui.text("正在读取网络接口…", 28, ui.ink, false);
+        ProgressBar bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        bar.setProgressTintList(android.content.res.ColorStateList.valueOf(ui.accent));
+        LinearLayout content = ui.vertical(); content.addView(counts, ui.lp(Ui.MATCH, Ui.WRAP));
+        content.addView(bar, ui.lp(Ui.MATCH, ui.px(24), 0, ui.px(16), 0, 0));
+        discoveryDialog = new UiDialog(this, ui, "探测 CP IP 地址")
+            .message("只检查候选地址的 SSH 响应，不登录。发现后请选择地址，再确认主机指纹。")
+            .view(content).negative("取消", this::stopDiscovery).onCancel(this::stopDiscovery).show();
+        try {
+            state.submit("探测 CP IP 地址", () -> {
+                try {
+                    List<String> local;
+                    try {local = CpDiscovery.localAddresses();} catch (java.net.SocketException unavailable) {local = Collections.emptyList();}
+                    CpDiscovery.Result result = scan.scan(configured, local, (fallback, checked, total, found) -> {
+                        String stage = fallback ? "检查当前地址所在网段" : "检查 CP 候选地址";
+                        if (checked == 0) {state.progress.stage(stage, total); state.report(stage);}
+                        state.progress.advance(checked);
+                        if (checked % 8 == 0 || checked == total) runOnUiThread(() -> {
+                            if (cpDiscovery != scan || isFinishing() || isDestroyed()) return;
+                            counts.setText(stage + "\n已检查 " + checked + " / " + total + " · SSH 候选 " + found);
+                            bar.setMax(Math.max(1, total)); bar.setProgress(checked);
+                        });
+                    });
+                    state.report((result.timedOut() ? "探测时间已到，显示已发现的结果" : "CP IP 探测完成") + "\n已检查 " + result.checked() + " · SSH 候选 " + result.endpoints().size());
+                    runOnUiThread(() -> finishDiscovery(scan, result));
+                } catch (Exception e) {
+                    runOnUiThread(() -> {if (cpDiscovery == scan) stopDiscovery();});
+                    throw e;
+                }
+            });
+        } catch (Exception e) {stopDiscovery(); error(e.getMessage());}
+    }
+
+    private void finishDiscovery(CpDiscovery scan, CpDiscovery.Result result) {
+        if (cpDiscovery != scan || isFinishing() || isDestroyed()) return;
+        // TaskService releases the task lock on the main thread after the worker returns.
+        if (state.busy.get()) {clock.postDelayed(() -> finishDiscovery(scan, result), 100); return;}
+        cpDiscovery = null;
+        if (discoveryDialog != null) {discoveryDialog.dismiss(); discoveryDialog = null;}
+        String note = "SSH 响应不能确认仪表身份；选用不同地址会清除旧指纹并关闭自动覆盖。";
+        if (result.timedOut()) note = "探测时间已到，部分地址尚未检查，可重新探测。\n" + note;
+        if (result.endpoints().isEmpty()) {
+            discoveryDialog = new UiDialog(this, ui, "未发现 SSH 候选地址")
+                .message("请确认 CP 已开启 SSH，且车机网络可访问 CP。也可以手动修改地址。\n" + note)
+                .positive("知道了", Ui.Look.PRIMARY, null).show();
+        } else {
+            String[] labels = new String[result.endpoints().size()];
+            for (int i = 0; i < labels.length; i++) {
+                CpDiscovery.Endpoint endpoint = result.endpoints().get(i);
+                labels[i] = endpoint.host() + (endpoint.host().equals(SshAccess.host(this)) ? " · 当前地址" : "") + "\n" + I18n.literal(endpoint.banner());
+            }
+            discoveryDialog = new UiDialog(this, ui, "选择 CP 候选地址").message(note)
+                .items(labels, index -> saveCpAddress(result.endpoints().get(index).host()))
+                .negative("取消", null).show();
+        }
     }
 
     private void beginExport() {

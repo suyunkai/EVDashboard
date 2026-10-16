@@ -17,7 +17,7 @@ An Android app for instrument CP image maintenance and instrument chime customiz
 
 ## Download
 
-The current version is **[v0.2.4](https://github.com/suyunkai/EVDashboard/releases/tag/v0.2.4)**. Download the APK and its `.sha256` checksum from the release assets.
+The current version is **[v0.2.5](https://github.com/suyunkai/EVDashboard/releases/tag/v0.2.5)**. Download the APK and its `.sha256` checksum from the release assets.
 
 | Item | Details |
 | --- | --- |
@@ -33,7 +33,7 @@ The current version is **[v0.2.4](https://github.com/suyunkai/EVDashboard/releas
 | Area | What you can do |
 | --- | --- |
 | Image backup | Identify the current CP slot, export a complete image, verify its hash, and classify backups. |
-| Image editing | Import a compatible image, independently configure SSH startup and root password clearing, and generate a new image while preserving the source. |
+| Image editing | Import a compatible image, independently configure SSH startup and root password clearing, and generate a new image while preserving the source. The flashing review shows the selected image’s detected SSH and root password configuration; this is image configuration, not live connection status. |
 | Image writing | Review the candidate, write only the current CP rootfs slot, and verify the complete readback. |
 | Instrument chimes | Read actual CP WAV resources; browse categorized, scrollable sound cards; open a card to preview, replace, restore, or export sounds. |
 | Independent volume | Adjust original or replacement audio from **0% (mute) to 200%**. Derived files preserve the original and replacement sources. |
@@ -106,7 +106,7 @@ Adjust independent volume, preview audio, select a replacement, restore defaults
 <details>
 <summary><strong>Sound connection, formats, and startup apply</strong></summary>
 
-- Sounds use root SSH, default `198.18.44.2:22`, with temporary bind mounts under `/run/instrument-workshop`. The IPv4 address is editable; the port remains 22. Changing the address clears host trust and disables startup apply until identity is confirmed again.
+- Sounds use root SSH, default `198.18.44.2:22`, with temporary bind mounts under `/run/instrument-workshop`. Use the side-by-side **Edit IP** and **Find IP** buttons to enter an address or discover SSH candidates across vehicle subnets. Discovery checks SSH identification without logging in; select a candidate and confirm its host fingerprint. The port remains 22. Changing the address clears host trust and disables startup apply until identity is confirmed again.
 - SSH passwords remain in interface memory and are not persisted. Startup apply requires an empty-password connection. A changed host key requires fresh user confirmation; foreign overlays are neither removed nor treated as originals.
 - Catalog reads and pre/post-apply checks fetch fresh SHA-256 manifests, reuse matching immutable local audio, and download only missing or changed resources. Hash checks and rollback handling remain in place.
 - WAV handling supports chunk-aware PCM16 parsing and preserves original container metadata on original-sound export. Other imports use Android MediaCodec. Replacements are converted to the target's 48 kHz mono/stereo format, with a maximum duration of 30 seconds.

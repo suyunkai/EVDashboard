@@ -17,7 +17,7 @@ An Android app for instrument CP image maintenance and instrument chime customiz
 
 ## Download
 
-The current version is **[v0.2.5](https://github.com/suyunkai/EVDashboard/releases/tag/v0.2.5)**. Download the APK and its `.sha256` checksum from the release assets.
+The current version is **[v0.2.6](https://github.com/suyunkai/EVDashboard/releases/tag/v0.2.6)**. Download the APK and its `.sha256` checksum from the release assets.
 
 | Item | Details |
 | --- | --- |
@@ -109,7 +109,7 @@ Adjust independent volume, preview audio, select a replacement, restore defaults
 - Sounds use root SSH, default `198.18.44.2:22`, with temporary bind mounts under `/run/instrument-workshop`. Use the side-by-side **Edit IP** and **Find IP** buttons to enter an address or discover SSH candidates across vehicle subnets. Discovery checks SSH identification without logging in; select a candidate and confirm its host fingerprint. The port remains 22. Changing the address clears host trust and disables startup apply until identity is confirmed again.
 - SSH passwords remain in interface memory and are not persisted. Startup apply requires an empty-password connection. A changed host key requires fresh user confirmation; foreign overlays are neither removed nor treated as originals.
 - Catalog reads and pre/post-apply checks fetch fresh SHA-256 manifests, reuse matching immutable local audio, and download only missing or changed resources. Hash checks and rollback handling remain in place.
-- WAV handling supports chunk-aware PCM16 parsing and preserves original container metadata on original-sound export. Other imports use Android MediaCodec. Replacements are converted to the target's 48 kHz mono/stereo format, with a maximum duration of 30 seconds.
+- Imports accept MP4 audio tracks, MP3, M4A, AAC, Ogg, FLAC, Opus, AMR, and WAV. The local WAV reader converts 8/16/24/32-bit PCM and 32/64-bit floating-point WAV, including supported WAVEFORMATEXTENSIBLE layouts; other encodings use Android MediaCodec and depend on the head unit’s codecs. Imported WAV files may be up to 32 MiB. Output is always 48 kHz, 16-bit PCM WAV with the original sound’s mono/stereo channel count, up to 30 seconds. Duration and metadata are not copied from the original. Original-sound export preserves its container metadata.
 - Apply tasks use a CP-side batch lock and restart only affected playback services that were already running. On failure, they attempt to restore the previous overlay group and service state. An uncertain task is not automatically replayed after SSH disconnection.
 - ZIP files contain `manifest.json` and `audio/<sha256>.wav`. Import validates paths, duplicates, size, version, hashes, format, and channels before replacing local rules. Apply checks the current CP original hashes again to reject incompatible presets.
 - Automatic recovery is **off by default**. When enabled, a foreground service listens for boot, quick boot, system-ready and STR wake events; opening the app also requests a check. The interface is not opened automatically, and the idle monitor holds no wake lock.

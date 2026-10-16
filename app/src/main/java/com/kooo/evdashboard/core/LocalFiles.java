@@ -30,7 +30,7 @@ public final class LocalFiles {
     }
     public static boolean accepted(String name, boolean audio) {
         String lower = name.toLowerCase(Locale.ROOT);
-        return audio ? lower.matches(".*\\.(wav|mp3|m4a|aac|ogg|flac|opus|amr)") : lower.matches(".*\\.(img|bin)");
+        return audio ? lower.matches(".*\\.(wav|mp3|mp4|m4a|aac|ogg|flac|opus|amr)") : lower.matches(".*\\.(img|bin)");
     }
     public static File destination(File root, File folder, String name, File protectedLibrary) throws IOException {
         FilesEx.require(name != null && !name.isBlank() && name.length() <= 160 && !name.equals(".") && !name.equals("..")

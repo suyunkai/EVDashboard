@@ -52,6 +52,7 @@ final class LocalFilePicker implements AutoCloseable {
     private void browse(File root,File folder){browse(root,folder,0);}
     private void browse(File root,File folder,int offset){
         LinearLayout body=ui.vertical();TextView path=ui.text(I18n.literal(folder.getAbsolutePath()),24,ui.muted,false);body.addView(path);
+        if(audio&&!saving)body.addView(ui.text("支持音频及 MP4 视频，自动提取音轨并转换。最长 30 秒。",24,ui.muted,false),ui.lp(Ui.MATCH,Ui.WRAP,0,ui.px(12),0,ui.px(12)));
         LinearLayout list=ui.group();body.addView(list,ui.lp(Ui.MATCH,Ui.WRAP));
         TextView loading=ui.text("正在读取文件列表…",28,ui.muted,false);ui.addRow(list,ui.infoRow(loading));
         UiDialog dialog=new UiDialog(activity,ui,saving?"选择文件夹":"选择"+(zip?"预设 ZIP":audio?"音频":"镜像"))

@@ -743,5 +743,15 @@
   "未发现 SSH 候选地址": "No SSH candidates found",
   "请确认 CP 已开启 SSH，且车机网络可访问 CP。也可以手动修改地址。": "Check that SSH is enabled on the CP and reachable from the head unit. You can also enter an address manually.",
   " · 当前地址": " · Current address",
-  "选择 CP 候选地址": "Select a CP candidate address"
+  "选择 CP 候选地址": "Select a CP candidate address",
+  "支持音频及 MP4 视频，自动提取音轨并转换。最长 30 秒。": "Audio and MP4 videos supported. Audio is extracted and converted automatically. Up to 30 seconds.",
+  "WAV 超过 32 MiB 输入限制": "WAV exceeds the 32 MiB input limit",
+  "WAV 格式块重复或不完整": "WAV format chunk is duplicated or incomplete",
+  "WAV 扩展格式块不完整": "Incomplete extended WAV format chunk",
+  "此 WAV 编码需要系统解码器": "This WAV encoding requires a system decoder",
+  "WAV 声道布局不一致": "WAV channel layout is inconsistent",
+  "不支持的 WAV 位深": "Unsupported WAV bit depth",
+  "WAV 有效位填充不正确": "Invalid WAV valid-bit padding",
+  "文件没有音轨，请选择含声音的音频或视频文件": "This file has no audio track. Select an audio or video file that contains sound.",
+  "车机不支持此音频编码：": "The head unit does not support this audio codec: "
 }

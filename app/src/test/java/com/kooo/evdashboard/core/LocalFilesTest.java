@@ -11,10 +11,10 @@ public class LocalFilesTest {
     @Rule public TemporaryFolder temp=new TemporaryFolder();
     @Test public void listsFoldersFirstAndFiltersFiles() throws Exception {
         File root=temp.newFolder("volume");File dir=new File(root,"Z folder");assertTrue(dir.mkdir());
-        for(String name:new String[]{"test.img","firmware.BIN","music.wav","note.txt"})assertTrue(new File(root,name).createNewFile());
+        for(String name:new String[]{"test.img","firmware.BIN","music.wav","video.MP4","video.mp4.txt","note.txt"})assertTrue(new File(root,name).createNewFile());
         List<File> images=LocalFiles.list(root,root,false,false);
         assertEquals(3,images.size());assertEquals(dir.getCanonicalFile(),images.get(0));
-        assertEquals(2,LocalFiles.list(root,root,true,false).size());
+        List<File> audio=LocalFiles.list(root,root,true,false);assertEquals(3,audio.size());assertTrue(audio.stream().anyMatch(f->f.getName().equals("video.MP4")));
         assertEquals(Collections.singletonList(dir.getCanonicalFile()),LocalFiles.list(root,root,false,true));
     }
     @Test public void rejectsEscapeAndSymbolicLinks() throws Exception {

@@ -13,14 +13,15 @@ final class AudioImport {
         // A vendor raw-audio codec can stall despite valid PCM input. WAV is parsed locally.
         try(InputStream opened=context.getContentResolver().openInputStream(uri);BufferedInputStream in=new BufferedInputStream(opened)){
             in.mark(12);byte[] header=new byte[12];int count=0,n;while(count<header.length&&(n=in.read(header,count,header.length-count))>0)count+=n;in.reset();
-            if(count==12&&ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN).getInt(0)==0x46464952&&ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN).getInt(8)==0x45564157){ByteArrayOutputStream bytes=new ByteArrayOutputStream();byte[] buffer=new byte[8192];while((n=in.read(buffer))!=-1){FilesEx.require(bytes.size()+n<=6*1024*1024,"WAV 超过 6 MiB 输入限制");bytes.write(buffer,0,n);}return SoundWave.convert(bytes.toByteArray(),targetChannels,48000,gain);}
+            if(count==12&&ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN).getInt(0)==0x46464952&&ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN).getInt(8)==0x45564157){ByteArrayOutputStream bytes=new ByteArrayOutputStream();byte[] buffer=new byte[8192];while((n=in.read(buffer))!=-1){FilesEx.require(bytes.size()+n<=WaveImport.MAX_INPUT_BYTES,"WAV 超过 32 MiB 输入限制");bytes.write(buffer,0,n);}try{return WaveImport.convert(bytes.toByteArray(),targetChannels,gain);}catch(UnsupportedEncodingException compressed){/* Compressed WAV uses the system decoder below. */}}
         }
         MediaExtractor extractor=new MediaExtractor();MediaCodec codec=null;
         try{
             extractor.setDataSource(context,uri,null);MediaFormat input=null;
             for(int t=0;t<extractor.getTrackCount();t++){MediaFormat f=extractor.getTrackFormat(t);String mime=f.getString(MediaFormat.KEY_MIME);if(mime!=null&&mime.startsWith("audio/")){input=f;extractor.selectTrack(t);break;}}
-            FilesEx.require(input!=null,"没有可解码的音轨");if(input.containsKey(MediaFormat.KEY_DURATION))FilesEx.require(input.getLong(MediaFormat.KEY_DURATION)<=30_000_000,"音频不能超过 30 秒");
-            codec=MediaCodec.createDecoderByType(input.getString(MediaFormat.KEY_MIME));codec.configure(input,null,null,0);codec.start();
+            FilesEx.require(input!=null,"文件没有音轨，请选择含声音的音频或视频文件");if(input.containsKey(MediaFormat.KEY_DURATION))FilesEx.require(input.getLong(MediaFormat.KEY_DURATION)<=30_000_000,"音频不能超过 30 秒");
+            String mime=input.getString(MediaFormat.KEY_MIME);
+            try{codec=MediaCodec.createDecoderByType(mime);}catch(IOException|IllegalArgumentException unavailable){throw new IOException("车机不支持此音频编码："+mime,unavailable);}codec.configure(input,null,null,0);codec.start();
             boolean sentEnd=false,done=false;int rate=input.getInteger(MediaFormat.KEY_SAMPLE_RATE),channels=input.getInteger(MediaFormat.KEY_CHANNEL_COUNT),encoding=AudioFormat.ENCODING_PCM_16BIT;ByteArrayOutputStream pcm=new ByteArrayOutputStream();MediaCodec.BufferInfo info=new MediaCodec.BufferInfo();long deadline=System.nanoTime()+60_000_000_000L;
             FilesEx.require(rate>=8000&&rate<=192000&&channels>=1&&channels<=8,"不支持的音频采样率或声道数");
             while(!done){FilesEx.require(System.nanoTime()<deadline,"音频解码超时");if(!sentEnd){int slot=codec.dequeueInputBuffer(10000);if(slot>=0){ByteBuffer buffer=codec.getInputBuffer(slot);int n=extractor.readSampleData(buffer,0);if(n<0){codec.queueInputBuffer(slot,0,0,0,MediaCodec.BUFFER_FLAG_END_OF_STREAM);sentEnd=true;}else{codec.queueInputBuffer(slot,0,n,extractor.getSampleTime(),0);extractor.advance();}}}

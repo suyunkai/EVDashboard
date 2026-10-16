@@ -191,6 +191,37 @@ public class SoundUiTest {
         if(activity.getResources().getConfiguration().screenWidthDp>=1200){int[] a=new int[2],b=new int[2];select.getLocationOnScreen(a);settings.getLocationOnScreen(b);assertTrue(a[0]+select.getWidth()<=b[0]);assertEquals(a[1],b[1]);}
         capture("image-workspace",decor);
     }
+    @Test public void mp4IsSelectableAndImportsIntoTheSoundDraftWithoutApplying() throws Exception {
+        File folder=new File(context.getExternalFilesDir(null),"mp4-ui-"+UUID.randomUUID()),input=new File(folder,"tone.MP4");assertTrue(folder.mkdir());
+        Set<String> beforeAssets=new HashSet<>();for(File f:new File(root,"assets").listFiles())beforeAssets.add(f.getName());
+        byte[] beforeRules=backup("rules.json");
+        try {
+            try(InputStream in=instrumentation.getContext().getAssets().open("synthetic-aac-video.mp4")){Files.copy(in,input.toPath());}
+            instrumentation.runOnMainSync(()->clickRow(visible("转向提示")));instrumentation.waitForIdleSync();Dialog editor=detail();
+            instrumentation.runOnMainSync(()->{((SeekBar)tag(editor.getWindow().getDecorView(),"sound-volume")).setProgress(73);find(editor.getWindow().getDecorView(),"替换音频").performClick();});instrumentation.waitForIdleSync();
+            java.lang.reflect.Field panelField=MainActivity.class.getDeclaredField("soundPanel");panelField.setAccessible(true);Object panel=panelField.get(activity);
+            java.lang.reflect.Field pickerField=panel.getClass().getDeclaredField("picker");pickerField.setAccessible(true);Object picker=pickerField.get(panel);
+            java.lang.reflect.Field active=picker.getClass().getDeclaredField("active");active.setAccessible(true);
+            java.lang.reflect.Field wrapped=Class.forName("com.kooo.evdashboard.UiDialog",false,activity.getClassLoader()).getDeclaredField("dialog");wrapped.setAccessible(true);
+            java.lang.reflect.Method browse=picker.getClass().getDeclaredMethod("browse",File.class,File.class);browse.setAccessible(true);
+            instrumentation.runOnMainSync(()->{try{((Dialog)wrapped.get(active.get(picker))).dismiss();browse.invoke(picker,android.os.Environment.getExternalStorageDirectory(),folder);}catch(Exception e){throw new AssertionError(e);}});
+            Dialog browser=(Dialog)wrapped.get(active.get(picker));TextView choice=null;long deadline=System.nanoTime()+10_000_000_000L;
+            while(choice==null&&System.nanoTime()<deadline){instrumentation.waitForIdleSync();choice=find(browser.getWindow().getDecorView(),"文件 · tone.MP4");if(choice==null)Thread.sleep(100);}
+            assertNotNull("MP4 must appear in the actual picker",choice);capture("mp4-picker",browser.getWindow().getDecorView());
+            final TextView selectedFile=choice;instrumentation.runOnMainSync(()->clickRow(selectedFile));
+            java.lang.reflect.Field stateField=MainActivity.class.getDeclaredField("state");stateField.setAccessible(true);Object app=stateField.get(activity);
+            java.lang.reflect.Field busyField=app.getClass().getDeclaredField("busy");busyField.setAccessible(true);java.util.concurrent.atomic.AtomicBoolean busy=(java.util.concurrent.atomic.AtomicBoolean)busyField.get(app);
+            deadline=System.nanoTime()+20_000_000_000L;while(busy.get()&&System.nanoTime()<deadline)Thread.sleep(100);assertFalse("Import task must finish",busy.get());
+            instrumentation.waitForIdleSync();Dialog updated=detail();assertTrue(updated.isShowing());assertNotNull(find(updated.getWindow().getDecorView(),"音频来源 · 替换音频"));assertEquals(73,((SeekBar)tag(updated.getWindow().getDecorView(),"sound-volume")).getProgress());
+            java.lang.reflect.Method decode=Class.forName("com.kooo.evdashboard.AudioImport").getDeclaredMethod("decode",Context.class,android.net.Uri.class,int.class,int.class);decode.setAccessible(true);
+            byte[] expected=(byte[])decode.invoke(null,context,android.net.Uri.fromFile(input),100,2);String sha=FilesEx.hex(java.security.MessageDigest.getInstance("SHA-256").digest(expected));
+            assertArrayEquals(expected,store.bytes(sha));SoundWave output=new SoundWave(store.bytes(sha));assertEquals(48000,output.rate);assertEquals(2,output.channels);
+            assertArrayEquals(beforeRules,backup("rules.json"));capture("mp4-imported-draft",updated.getWindow().getDecorView());instrumentation.runOnMainSync(updated::dismiss);
+        } finally {
+            for(File f:new File(root,"assets").listFiles())if(!beforeAssets.contains(f.getName()))addedAssets.add(f.getName());
+            Files.deleteIfExists(input.toPath());Files.deleteIfExists(folder.toPath());
+        }
+    }
     @Test public void languageSwitchPersistsNavigationAndLocalizesDialogsAndRiskNotice() throws Exception {
         switchLanguage();
         assertEquals("en",context.getSharedPreferences("settings",0).getString("uiLanguage",""));

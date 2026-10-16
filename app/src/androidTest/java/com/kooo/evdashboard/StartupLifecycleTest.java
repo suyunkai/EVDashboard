@@ -19,17 +19,17 @@ public class StartupLifecycleTest {
     private SharedPreferences prefs;
     private Map<String, ?> before;
     private final Set<String> changed = Set.of("soundAutoApply", "sshKnown", "startupStatus", "startupBoot", "startupBlockedUntil");
-    @Before public void setup() {
+    @Before public void setup() throws Exception {
         context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         prefs = context.getSharedPreferences("settings", 0);
         assertFalse("Disable automatic application before this no-write test", prefs.getBoolean("soundAutoApply", false));
-        assertFalse(((AppState) context.getApplicationContext()).busy.get());
-        before = prefs.getAll(); AutoApplyService.stop(context);
+        assertFalse(busy());
+        before = prefs.getAll(); stopMonitor();
         prefs.edit().remove("sshKnown").remove("startupStatus").remove("startupBoot").remove("startupBlockedUntil").commit();
     }
     @After public void cleanup() throws Exception {
         if (before == null) return;
-        prefs.edit().putBoolean("soundAutoApply", false).commit(); AutoApplyService.stop(context);
+        prefs.edit().putBoolean("soundAutoApply", false).commit(); stopMonitor();
         long deadline = SystemClock.elapsedRealtime() + 4000;
         while (running() && SystemClock.elapsedRealtime() < deadline) Thread.sleep(50);
         SharedPreferences.Editor edit = prefs.edit();
@@ -48,6 +48,12 @@ public class StartupLifecycleTest {
             if (info.service.getClassName().equals(AutoApplyService.class.getName()) && info.foreground) return true;
         return false;
     }
+    private void stopMonitor() {context.stopService(new Intent(context, AutoApplyService.class));}
+    private boolean busy() throws Exception {
+        Object app = context.getApplicationContext();
+        java.lang.reflect.Field field = app.getClass().getDeclaredField("busy"); field.setAccessible(true);
+        return ((java.util.concurrent.atomic.AtomicBoolean) field.get(app)).get();
+    }
     @Test public void manifestRegistersBootAndWakeButDoesNotExportTheWorker() throws Exception {
         PackageManager pm = context.getPackageManager();
         ActivityInfo receiver = pm.getReceiverInfo(new ComponentName(context, BootReceiver.class), 0);
@@ -65,7 +71,7 @@ public class StartupLifecycleTest {
         receiver.onReceive(context, null); receiver.onReceive(context, new Intent());
         receiver.onReceive(context, new Intent("unrelated.action"));
         context.sendBroadcast(new Intent(StartupRecovery.STR).setComponent(new ComponentName(context, BootReceiver.class)));
-        Thread.sleep(800); assertFalse(running()); assertFalse(((AppState) context.getApplicationContext()).busy.get());
+        Thread.sleep(800); assertFalse(running()); assertFalse(busy());
     }
     @Test public void wakeStartsForegroundMonitoringWithoutUiOrCpTrust() throws Exception {
         prefs.edit().putBoolean("soundAutoApply", true).commit();
@@ -75,8 +81,8 @@ public class StartupLifecycleTest {
         assertTrue(running());
         String status = prefs.getString("startupStatus", "");
         assertTrue(status, status.startsWith("等待自动恢复条件："));
-        assertFalse(SshAccess.trusted(context));
-        assertFalse(((AppState) context.getApplicationContext()).busy.get());
+        assertEquals("", prefs.getString("sshKnown", ""));
+        assertFalse(busy());
         assertTrue(prefs.getBoolean("soundAutoApply", false));
     }
     @Test public void restartWithoutAWakeReasonDoesNotReplayAnEarlierAttempt() throws Exception {
@@ -84,6 +90,6 @@ public class StartupLifecycleTest {
         context.startForegroundService(new Intent(context, AutoApplyService.class));
         Thread.sleep(2800);
         assertTrue(running()); assertEquals("previous-result", prefs.getString("startupStatus", ""));
-        assertFalse(((AppState) context.getApplicationContext()).busy.get());
+        assertFalse(busy());
     }
 }

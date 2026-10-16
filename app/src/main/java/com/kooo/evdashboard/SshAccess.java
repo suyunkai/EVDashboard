@@ -6,6 +6,7 @@ import com.kooo.evdashboard.core.FilesEx;
 import com.kooo.evdashboard.core.BoundedBytes;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 
 final class SshAccess implements AutoCloseable {
     private final Context context;private Session session;

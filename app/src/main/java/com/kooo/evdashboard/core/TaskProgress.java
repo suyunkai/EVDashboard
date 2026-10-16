@@ -42,10 +42,12 @@ public final class TaskProgress {
     public record Snapshot(String stage, int percent, long elapsedMs, long remainingMs,
                            boolean running, boolean successful, long bytes, long totalBytes) {
         public String summary() {
-            if (!running) return (successful ? "完成 100%" : "未完成") + " · 用时 " + duration(elapsedMs);
-            String measured = percent < 0 ? "本步百分比不可计量" : "本步 " + percent + "%";
-            String remaining = remainingMs < 0 ? "本步剩余：暂无法估算" : "本步剩余约 " + duration(remainingMs);
-            return measured + " · 已用 " + duration(elapsedMs) + " · " + remaining;
+            if (!running) return (successful ? "已完成" : "未完成") + " · " + timing();
+            return (percent < 0 ? "" : "当前步骤 " + percent + "% · ") + timing();
+        }
+        public String timing() {
+            return (running ? "已用 " : "用时 ") + duration(elapsedMs)
+                + (running && remainingMs >= 0 ? " · 预计剩余 " + duration(remainingMs) : "");
         }
     }
     public static String duration(long ms) {

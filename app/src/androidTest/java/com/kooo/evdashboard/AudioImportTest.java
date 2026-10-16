@@ -32,4 +32,15 @@ public class AudioImportTest {
         Context c=InstrumentationRegistry.getInstrumentation().getTargetContext();File f=File.createTempFile("audio-mp3-",".mp3",c.getCacheDir());
         try(java.io.InputStream in=InstrumentationRegistry.getInstrumentation().getContext().getAssets().open("synthetic-tone.mp3")){Files.copy(in,f.toPath(),java.nio.file.StandardCopyOption.REPLACE_EXISTING);short[] pcm=WaveAudio.normalizedSamples(decode(c,f));assertTrue(pcm.length>=10000&&pcm.length<=24000);}finally{Files.deleteIfExists(f.toPath());}
     }
+    @Test public void actualImporterPreservesStereoTarget()throws Exception{
+        Context c=InstrumentationRegistry.getInstrumentation().getTargetContext();File f=File.createTempFile("audio-stereo-",".wav",c.getCacheDir());
+        try{
+            Files.write(f.toPath(),com.kooo.evdashboard.core.SoundWave.encode(new short[]{1000,-2000,3000,-4000},48000,2));
+            java.lang.reflect.Method method=Class.forName("com.kooo.evdashboard.AudioImport").getDeclaredMethod("decode",Context.class,Uri.class,int.class,int.class);method.setAccessible(true);
+            byte[] decoded=(byte[])method.invoke(null,c,Uri.fromFile(f),100,2);
+            assertEquals(2,new com.kooo.evdashboard.core.SoundWave(decoded).channels);
+            java.nio.ByteBuffer b=java.nio.ByteBuffer.wrap(decoded).order(java.nio.ByteOrder.LITTLE_ENDIAN);assertEquals(1000,b.getShort(44));assertEquals(-2000,b.getShort(46));
+        }finally{Files.deleteIfExists(f.toPath());}
+    }
+
 }

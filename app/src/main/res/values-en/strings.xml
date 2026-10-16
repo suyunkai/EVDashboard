@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">Instrument Workshop</string>
+    <string name="risk_title">Risk notice</string>
+    <string name="risk_body">Only for head units with an Antora 1000 chip.\nThis app rewrites instrument partition images and may cause serious consequences. You assume responsibility for all consequences.\nFollow the laws and traffic rules of your country.</string>
+    <string name="language_label">Language</string>
+</resources>

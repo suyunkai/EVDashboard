@@ -21,6 +21,9 @@ final class UiDialog {
     private final Ui ui;
     private final Dialog dialog;
     private final LinearLayout card, body, buttons;
+    private final TextView title;
+    private boolean compact;
+    private int maxWidth = 1500;
     private Button positive;
     private Runnable onCancel;
 
@@ -33,6 +36,7 @@ final class UiDialog {
         card.setBackground(ui.rect(ui.surface, 44, ui.line, 2));
         card.setPadding(ui.px(48), ui.px(40), ui.px(48), ui.px(36));
         TextView t = ui.text(title, 40, ui.ink, true);
+        this.title = t;
         card.addView(t, ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(16)));
         body = ui.vertical();
         MaxScroll scroll = new MaxScroll(activity, (int) (activity.getResources().getDisplayMetrics().heightPixels * .62f));
@@ -70,12 +74,22 @@ final class UiDialog {
     }
 
     UiDialog onCancel(Runnable r) {onCancel = r; return this;}
+    UiDialog onDismiss(Runnable r) {dialog.setOnDismissListener(d -> r.run()); return this;}
+    UiDialog compact(int width) {
+        compact = true; maxWidth = width;
+        card.setPadding(ui.px(36), ui.px(28), ui.px(36), ui.px(28));
+        title.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, ui.px(36));
+        buttons.setLayoutParams(ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(18), 0, 0));
+        return this;
+    }
     void dismiss() {dialog.dismiss();}
     boolean isShowing() {return dialog.isShowing();}
 
     private Button add(String label, Ui.Look look, Runnable action) {
         Button b = ui.button(label, look, v -> {dialog.dismiss(); if (action != null) action.run();});
-        buttons.addView(b, ui.lp(Ui.WRAP, ui.px(look == Ui.Look.PRIMARY ? 108 : 96), ui.px(16), 0, 0, 0));
+        if (compact) {b.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, ui.px(28)); b.setPadding(ui.px(24), 0, ui.px(24), 0);}
+        int height = compact ? Math.max(ui.px(88), Math.round(48 * activity.getResources().getDisplayMetrics().density)) : ui.px(look == Ui.Look.PRIMARY ? 108 : 96);
+        buttons.addView(b, ui.lp(Ui.WRAP, height, ui.px(compact ? 12 : 16), 0, 0, 0));
         return b;
     }
 
@@ -99,7 +113,7 @@ final class UiDialog {
         if (w != null) {
             DisplayMetrics m = activity.getResources().getDisplayMetrics();
             w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-            w.setLayout(Math.min(ui.px(1500), (int) (m.widthPixels * .92f)), WindowManager.LayoutParams.WRAP_CONTENT);
+            w.setLayout(Math.min(ui.px(maxWidth), (int) (m.widthPixels * .92f)), WindowManager.LayoutParams.WRAP_CONTENT);
             w.setDimAmount(.55f);
         }
         return this;

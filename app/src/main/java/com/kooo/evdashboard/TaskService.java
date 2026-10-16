@@ -17,13 +17,13 @@ public final class TaskService extends Service {
         com.kooo.evdashboard.core.TaskProgress.Snapshot p=state.progress.snapshot();
         PendingIntent open=PendingIntent.getActivity(this,0,new Intent(this,MainActivity.class),PendingIntent.FLAG_IMMUTABLE);
         return new Notification.Builder(this,"maintenance").setSmallIcon(R.drawable.ic_stat_workshop)
-            .setContentTitle(state.title+" · "+p.stage()).setContentText(p.summary())
-            .setStyle(new Notification.BigTextStyle().bigText(p.summary()+"\n请保持应用前台、车辆驻车与稳定供电"))
+            .setContentTitle(I18n.text(this,state.title)).setContentText(I18n.text(this,p.summary()))
+            .setStyle(new Notification.BigTextStyle().bigText(I18n.text(this,p.stage()+"\n"+state.status+"\n"+p.summary())))
             .setProgress(100,Math.max(0,p.percent()),p.percent()<0).setOnlyAlertOnce(true)
             .setContentIntent(open).setOngoing(true).build();
     }
     @Override public void onCreate(){
-        super.onCreate();getSystemService(NotificationManager.class).createNotificationChannel(new NotificationChannel("maintenance","本机维护任务",NotificationManager.IMPORTANCE_LOW));
+        super.onCreate();getSystemService(NotificationManager.class).createNotificationChannel(new NotificationChannel("maintenance",I18n.text(this,"本机维护任务"),NotificationManager.IMPORTANCE_LOW));
         startForeground(1,notification());handler.post(ticker);
         wake=getSystemService(PowerManager.class).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"EVDashboard:maintenance");wake.acquire(30*60*1000L);
     }
@@ -32,7 +32,7 @@ public final class TaskService extends Service {
         if(job==null){if(!state.busy.get())stopSelfResult(startId);return START_NOT_STICKY;}
         state.executor.execute(()->{
             boolean success=false;
-            try{job.run();success=true;}catch(Exception e){state.failed=true;state.report("任务未完成："+e.getMessage()+"\n不会自动重试写入或重启。备份和任务文件保留。");}
+            try{job.run();success=true;}catch(Exception e){state.failed=true;state.report("操作未完成："+e.getMessage());}
             finally{state.progress.finish(success);handler.post(()->{handler.removeCallbacks(ticker);stopForeground(STOP_FOREGROUND_REMOVE);stopSelfResult(startId);state.busy.set(false);state.sendBroadcast(new Intent("com.kooo.evdashboard.STATUS").setPackage(getPackageName()));});}
         });return START_NOT_STICKY;
     }

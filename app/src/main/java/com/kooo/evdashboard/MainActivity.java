@@ -6,6 +6,9 @@ import android.database.Cursor;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.media.MediaPlayer;
+import android.media.AudioAttributes;
+import android.media.AudioFocusRequest;
+import android.media.AudioManager;
 import android.net.Uri;
 import android.os.*;
 import android.provider.*;
@@ -21,10 +24,10 @@ import java.util.*;
 
 public final class MainActivity extends Activity {
     private static final String[][] TITLES = {
-        {"连接 CP", "AVAS · 行人提示音", "锁车提示音", "已保存设置", "驻车测试"},
+        {"连接 CP", "声音目录", "预设与导出", "自动覆盖", "使用说明"},
         {"1 · 识别与备份", "2 · 选择与修改", "3 · 校验与写入", "任务与恢复"}};
     private static final String[][] SUBTITLES = {
-        {"", "自定义音频与曲线", "自定义锁车声", "", "谨慎操作"},
+        {"", "分类浏览实际声音", "最多 5 个 · ZIP 备份", "应用启动时执行", "试听、音量与恢复"},
         {"先识别，再导出备份", "选择镜像，再生成副本", "保留备份并全量回读", "写后回读与恢复"}};
     private static final int[][] ICONS = {
         {R.drawable.ic_ui_link, R.drawable.ic_ui_audio, R.drawable.ic_ui_lock, R.drawable.ic_ui_save, R.drawable.ic_ui_flask},
@@ -32,7 +35,7 @@ public final class MainActivity extends Activity {
     private static final int[][] COLORS = {
         {0xFF2D6BFF, 0xFF16A07A, 0xFF7A5AF8, 0xFFF28C28, 0xFFE5483C},
         {0xFF2D6BFF, 0xFF16A07A, 0xFFE5483C, 0xFF7A5AF8}};
-    private static final String[] PAGE_NAMES = {"AVAS 与提示音", "仪表盘工坊"};
+    private static final String[] PAGE_NAMES = {"仪表提示音", "仪表工坊"};
 
     private AppState state;
     private Ui ui;
@@ -46,19 +49,22 @@ public final class MainActivity extends Activity {
     private final View[][] navItems = {new View[5], new View[4]};
     private final TextView[][] navSub = {new TextView[5], new TextView[4]};
     private final View[][] panes = {new View[5], new View[4]};
-    private TextView statusTitle, statusText, progressText, permissionText, cpAddressText;
+    private TextView statusTitle, statusText, progressText, taskState, progressPercent, permissionText, cpAddressText;
     private View statusDot;
-    private ProgressBar progress;
+    private Ui.ProgressTrack progress;
 
-    private EditText password, forward, reverse, avasGain, lockGain;
-    private Ui.Toggle useAvasAudio, useCurves, enableSsh, clearRoot;
-    private TextView avasFileText, lockFileText, fingerprintChip;
+    private EditText password;
+    private Ui.Toggle enableSsh, clearRoot;
+    private TextView fingerprintChip;
+    private SoundPanel soundPanel;
     private LinearLayout imageList;
     private TextView slotText, deviceText, selectedText, dangerInfo;
     private View writeRow;
-    private File avasAudio, lockAudio;
     private String saveImageId = "";
     private MediaPlayer player;
+    private AudioFocusRequest previewFocus;
+    private int previewFocusResult = -1;
+    private Runnable previewDone;
     private LocalFilePicker filePicker;
     private final Handler clock = new Handler(Looper.getMainLooper());
     private final Runnable progressTick = new Runnable() {
@@ -66,37 +72,44 @@ public final class MainActivity extends Activity {
     };
 
     private final BroadcastReceiver updates = new BroadcastReceiver() {
-        @Override public void onReceive(Context c, Intent i) {updateStatus(); if (!state.busy.get()) refreshLibrary();}
+        @Override public void onReceive(Context c, Intent i) {updateStatus(); updateConnection(); if (!state.busy.get()) {refreshLibrary(); if (soundPanel != null) soundPanel.reload();}}
     };
+
+    @Override protected void attachBaseContext(Context base) {super.attachBaseContext(I18n.localized(base));}
 
     // Before API 33 the same-app signature permission protects this receiver.
     @android.annotation.SuppressLint("UnspecifiedRegisterReceiverFlag")
     @Override public void onCreate(Bundle bundle) {
         super.onCreate(bundle);
         state = (AppState) getApplication();
+        section[0] = SshAccess.trusted(this) ? 1 : 0;
+        if (bundle != null) {page = bundle.getInt("workshopPage", 1); int[] savedSections = bundle.getIntArray("workshopSections"); if (savedSections != null && savedSections.length == 2) System.arraycopy(savedSections, 0, section, 0, 2); Bundle savedDrafts = bundle.getBundle("workshopDrafts"); if (savedDrafts != null) for (String key : savedDrafts.keySet()) drafts.put(key, savedDrafts.getString(key, ""));}
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         if (Build.VERSION.SDK_INT >= 33) registerReceiver(updates, new IntentFilter("com.kooo.evdashboard.STATUS"), Context.RECEIVER_NOT_EXPORTED);
         else registerReceiver(updates, new IntentFilter("com.kooo.evdashboard.STATUS"), getPackageName() + ".INTERNAL", null);
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 90);
         render(getResources().getConfiguration());
+        clock.post(state::startupAudio);
     }
 
+    @Override protected void onSaveInstanceState(Bundle out) {out.putInt("workshopPage", page); out.putIntArray("workshopSections", section.clone()); Bundle saved = new Bundle(); drafts.forEach(saved::putString); out.putBundle("workshopDrafts", saved); super.onSaveInstanceState(out);}
+
     @Override protected void onResume() {super.onResume(); clock.removeCallbacks(progressTick); clock.post(progressTick); updatePermissions(); try {state.storage(); refreshLibrary();} catch (Exception ignored) {}}
-    @Override protected void onPause() {clock.removeCallbacks(progressTick); super.onPause();}
-    @Override protected void onDestroy() {clock.removeCallbacks(progressTick); if (filePicker != null) filePicker.close(); unregisterReceiver(updates); if (player != null) player.release(); super.onDestroy();}
+    @Override protected void onPause() {clock.removeCallbacks(progressTick); stopPreview(); super.onPause();}
+    @Override protected void onDestroy() {clock.removeCallbacks(progressTick); if (filePicker != null) filePicker.close(); unregisterReceiver(updates); stopPreview(); if (soundPanel != null) soundPanel.close(); super.onDestroy();}
     @Override public void onConfigurationChanged(android.content.res.Configuration config) {super.onConfigurationChanged(config); render(config);}
 
     // ---------------------------------------------------------------- layout
 
     private void render(android.content.res.Configuration config) {
         if (filePicker != null) {filePicker.close(); filePicker = null;}
+        if (soundPanel != null) soundPanel.close();
         ui = new Ui(this, config);
         View root = ui.compact ? compactRoot() : wideRoot();
         root.setBackgroundColor(ui.bg);
         setContentView(root);
         applySystemBars();
-        restoreAudioLabels();
         select(page, section[page]);
         updateConnection();
         updatePermissions();
@@ -125,6 +138,7 @@ public final class MainActivity extends Activity {
         navScroll.setVerticalScrollBarEnabled(false);
         navScroll.addView(navFrame());
         master.addView(navScroll, ui.lp(Ui.MATCH, 0, 1));
+        master.addView(sidebarFooter(), ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(18), 0, 0));
         root.addView(master, ui.lp(ui.px(700), Ui.MATCH));
         root.addView(detailColumn(), ui.lp(0, Ui.MATCH, 1));
         return root;
@@ -142,7 +156,27 @@ public final class MainActivity extends Activity {
         nav.addView(navFrame());
         root.addView(nav, ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(16)));
         root.addView(detailColumn(), ui.lp(Ui.MATCH, 0, 1));
+        root.addView(sidebarFooter(), ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(12), 0, 0));
         return root;
+    }
+
+    private View sidebarFooter() {
+        LinearLayout footer = ui.vertical(); footer.setTag("sidebar-footer");
+        LinearLayout warning = ui.vertical(); warning.setTag("permanent-risk-warning");
+        warning.setBackground(ui.rect(ui.warnBg, 24, ui.warnLine, 2)); warning.setPadding(ui.px(22), ui.px(18), ui.px(22), ui.px(18));
+        LinearLayout heading = ui.horizontal(); heading.addView(ui.icon(R.drawable.ic_ui_warn, ui.warn, 28), ui.lp(ui.px(28), ui.px(28), 0, 0, ui.px(10), 0));
+        heading.addView(ui.text(getString(R.string.risk_title), 26, ui.warn, true)); warning.addView(heading);
+        warning.addView(ui.text(getString(R.string.risk_body), 23, ui.warn, false), ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(8), 0, 0));
+        footer.addView(warning);
+        LinearLayout language = ui.horizontal(); language.setPadding(ui.px(4), ui.px(14), 0, 0);
+        language.addView(ui.text(getString(R.string.language_label), 25, ui.muted, false), ui.lp(0, Ui.WRAP, 1));
+        Button switchLanguage = ui.button(I18n.literal(I18n.english(this) ? "中文" : "English"), Ui.Look.TINT, v -> {
+            if (state.busy.get()) {error("请等待任务完成后切换语言"); return;}
+            prefs().edit().putString("uiLanguage", I18n.english(this) ? "zh" : "en").commit(); recreate();
+        });
+        switchLanguage.setTag("language-switch"); switchLanguage.setContentDescription(I18n.literal("中文 / English"));
+        language.addView(switchLanguage, ui.lp(Ui.WRAP, Math.max(ui.px(78), Math.round(48 * getResources().getDisplayMetrics().density))));
+        footer.addView(language); return footer;
     }
 
     private View detailColumn() {
@@ -163,8 +197,8 @@ public final class MainActivity extends Activity {
         seg.setPadding(ui.px(8), ui.px(8), ui.px(8), ui.px(8));
         for (int display = 0; display < 2; display++) {
             final int i = 1 - display, p = i;
-            Button b = new Button(this);
-            b.setText(PAGE_NAMES[i]);
+            Button b = new I18n.Action(this);
+            b.setText(I18n.english(this) ? (i == 1 ? "Workshop" : "Instrument Sounds") : PAGE_NAMES[i]);
             b.setAllCaps(false);
             b.setStateListAnimator(null);
             b.setMinHeight(0);
@@ -226,7 +260,7 @@ public final class MainActivity extends Activity {
         t.setClickable(true);
         t.setFocusable(true);
         t.setOnClickListener(v -> select(p, s));
-        navSub[p][s] = new TextView(this);
+        navSub[p][s] = new I18n.Label(this);
         return t;
     }
 
@@ -251,53 +285,54 @@ public final class MainActivity extends Activity {
                 panes[i][j].setVisibility(sel ? View.VISIBLE : View.GONE);
             }
         }
+        if (p == 0 && s == 1 && soundPanel != null) soundPanel.onVisible();
     }
 
     private View taskBar() {
-        LinearLayout container = ui.vertical();
-        container.setBackground(ui.rect(ui.surface, 34, 0, 0));
-        LinearLayout bar = ui.horizontal();
-        bar.setMinimumHeight(ui.px(88));
-        bar.setPadding(ui.px(32), ui.px(10), ui.px(32), ui.px(10));
-        bar.setBackground(ui.interactive(ui.surface, 34, 0));
-        bar.setClickable(true);
-        bar.setFocusable(true);
-        bar.setOnClickListener(v -> new UiDialog(this, ui, state.title).message(state.status + "\n\n" + state.progress.snapshot().summary() + "\n百分比与剩余时间仅对应当前步骤，不能代表整个任务已完成。重建、分区写入等无法计量的步骤不会显示虚假倒计时。").positive("关闭", Ui.Look.TINT, null).show());
-        statusDot = new View(this);
-        GradientDrawable dot = new GradientDrawable();
-        dot.setShape(GradientDrawable.OVAL);
-        statusDot.setBackground(dot);
-        bar.addView(statusDot, ui.lp(ui.px(18), ui.px(18), 0, 0, ui.px(22), 0));
-        statusTitle = ui.text("", 28, ui.ink, true);
-        bar.addView(statusTitle, ui.lp(Ui.WRAP, Ui.WRAP, 0, 0, ui.px(22), 0));
-        statusText = ui.text("", 26, ui.muted, false);
-        statusText.setMaxLines(2);
-        statusText.setEllipsize(TextUtils.TruncateAt.END);
-        bar.addView(statusText, ui.lp(0, Ui.WRAP, 1));
-        progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
-        progress.setIndeterminate(true);
-        progress.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(ui.accent));
-        progress.setProgressTintList(android.content.res.ColorStateList.valueOf(ui.accent));
-        bar.addView(progress, ui.lp(ui.px(360), ui.px(10), ui.px(22), 0, 0, 0));
-        container.addView(bar);
-        progressText = ui.text("", 24, ui.muted, false);
-        container.addView(progressText, ui.lp(Ui.MATCH, Ui.WRAP, ui.px(32), 0, ui.px(32), ui.px(16)));
+        LinearLayout container = ui.vertical(); container.setTag("task-panel");
+        container.setPadding(ui.px(28), ui.px(18), ui.px(28), ui.px(18));
+        container.setBackground(ui.interactive(ui.surface, 28, ui.line)); container.setClickable(true); container.setFocusable(true);
+        container.setOnClickListener(v -> {
+            TaskProgress.Snapshot snapshot = state.progress.snapshot();
+            UiDialog dialog = new UiDialog(this, ui, state.title).compact(1280).message(state.status);
+            if (!state.title.equals("就绪")) dialog.message(snapshot.summary());
+            dialog.positive("关闭", Ui.Look.TINT, null).show();
+        });
+        LinearLayout header = ui.horizontal();
+        statusDot = new View(this); GradientDrawable dot = new GradientDrawable(); dot.setShape(GradientDrawable.OVAL); statusDot.setBackground(dot);
+        header.addView(statusDot, ui.lp(ui.px(14), ui.px(14), 0, 0, ui.px(16), 0));
+        statusTitle = ui.text("", 29, ui.ink, true); statusTitle.setSingleLine(); statusTitle.setEllipsize(TextUtils.TruncateAt.END);
+        header.addView(statusTitle, ui.lp(0, Ui.WRAP, 1));
+        taskState = ui.text("", 22, ui.accent, true); taskState.setTag("task-state"); taskState.setGravity(Gravity.CENTER);
+        taskState.setPadding(ui.px(16), ui.px(6), ui.px(16), ui.px(6)); header.addView(taskState, ui.lp(Ui.WRAP, Ui.WRAP, ui.px(16), 0, 0, 0));
+        header.addView(ui.text("›", 30, ui.muted, false), ui.lp(Ui.WRAP, Ui.WRAP, ui.px(16), 0, 0, 0)); container.addView(header);
+        statusText = ui.text("", 25, ui.muted, false); statusText.setTag("task-message"); statusText.setMaxLines(2); statusText.setEllipsize(TextUtils.TruncateAt.END);
+        container.addView(statusText, ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(8), 0, 0));
+        LinearLayout metrics = ui.horizontal();
+        progressText = ui.text("", 24, ui.muted, false); progressText.setTag("task-timing"); metrics.addView(progressText, ui.lp(0, Ui.WRAP, 1));
+        progressPercent = ui.text("", 34, ui.accent, true); progressPercent.setTag("task-percentage"); metrics.addView(progressPercent);
+        container.addView(metrics, ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(10), 0, 0));
+        progress = new Ui.ProgressTrack(ui); progress.setTag("task-progress");
+        container.addView(progress, ui.lp(Ui.MATCH, ui.px(14), 0, ui.px(12), 0, ui.px(2)));
         return container;
     }
 
     private void updateStatus() {
         if (statusText == null) return;
-        statusTitle.setText(state.title);
-        statusTitle.setTextColor(state.failed ? ui.danger : ui.ink);
-        statusText.setText(state.status);
-        statusText.setTextColor(state.failed ? ui.danger : ui.muted);
-        ((GradientDrawable) statusDot.getBackground()).setColor(state.failed ? ui.danger : state.busy.get() ? ui.accent : ui.ok);
-        progress.setVisibility(state.busy.get() ? View.VISIBLE : View.GONE);
+        boolean busy = state.busy.get(), idle = state.title.equals("就绪") && !busy;
         TaskProgress.Snapshot snapshot = state.progress.snapshot();
-        progress.setIndeterminate(snapshot.percent() < 0);
-        if (snapshot.percent() >= 0) progress.setProgress(snapshot.percent());
-        progressText.setText(state.busy.get() ? snapshot.stage() + "\n" + snapshot.summary() : state.title.equals("就绪") ? "尚无任务 · 所有镜像处理均在本机完成" : snapshot.summary());
-        progressText.setVisibility(state.title.equals("就绪") ? View.GONE : View.VISIBLE);
+        int color = idle ? ui.muted : state.failed ? ui.danger : busy ? ui.accent : ui.ok;
+        statusTitle.setText(state.title); statusTitle.setTextColor(ui.ink);
+        statusText.setText(state.status); statusText.setTextColor(state.failed ? ui.danger : ui.muted);
+        ((GradientDrawable) statusDot.getBackground()).setColor(color);
+        taskState.setVisibility(idle ? View.GONE : View.VISIBLE);
+        taskState.setText(idle ? "待命" : busy ? "进行中" : state.failed ? "未完成" : "已完成");
+        taskState.setTextColor(color); taskState.setBackground(ui.rect(idle ? ui.surface2 : state.failed ? ui.dangerBg : busy ? ui.accentTint : ui.okBg, 12, 0, 0));
+        progress.setVisibility(busy ? View.VISIBLE : View.GONE); progress.percent(snapshot.percent());
+        progressPercent.setVisibility(busy && snapshot.percent() >= 0 ? View.VISIBLE : View.GONE);
+        progressPercent.setText(snapshot.percent() + "%");
+        progressText.setText(idle ? "" : snapshot.timing());
+        ((View) progressText.getParent()).setVisibility(idle ? View.GONE : View.VISIBLE);
     }
 
     // ---------------------------------------------------------------- pane scaffold
@@ -305,11 +340,12 @@ public final class MainActivity extends Activity {
     private final class Pane {
         final LinearLayout root = ui.vertical(), header = ui.horizontal(), content = ui.vertical(), footer = ui.horizontal();
 
-        Pane(int p, int s) {
+        Pane(int p, int s) {this(p, s, TITLES[p][s], false);}
+        Pane(int p, int s, String title, boolean narrow) {
             root.setBackground(ui.rect(ui.surface, 44, 0, 0));
-            root.setPadding(ui.px(44), ui.px(36), ui.px(44), ui.px(32));
-            header.addView(ui.icon(ICONS[p][s], COLORS[p][s], 48), ui.lp(ui.px(48), ui.px(48), 0, 0, ui.px(20), 0));
-            header.addView(ui.text(TITLES[p][s], 42, ui.ink, true), ui.lp(0, Ui.WRAP, 1));
+            root.setPadding(ui.px(narrow ? 28 : 44), ui.px(36), ui.px(narrow ? 28 : 44), ui.px(32));
+            header.addView(ui.icon(ICONS[p][s], COLORS[p][s], narrow ? 38 : 48), ui.lp(ui.px(narrow ? 38 : 48), ui.px(narrow ? 38 : 48), 0, 0, ui.px(20), 0));
+            header.addView(ui.text(title, narrow ? 36 : 42, ui.ink, true), ui.lp(0, Ui.WRAP, 1));
             root.addView(header, ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(20)));
             ScrollView scroll = new ScrollView(MainActivity.this);
             scroll.setVerticalScrollBarEnabled(false);
@@ -355,7 +391,7 @@ public final class MainActivity extends Activity {
     // ---------------------------------------------------------------- audio panes
 
     private String pass() {return password == null ? "" : password.getText().toString();}
-    private AudioEngine audio() {return new AudioEngine(this, state::report);}
+    private AudioEngine audio() throws Exception {return new AudioEngine(this, state::report);}
     private SharedPreferences prefs() {return getSharedPreferences("settings", 0);}
 
     private View[] audioPanes() {
@@ -374,107 +410,23 @@ public final class MainActivity extends Activity {
             SshAccess.KeyOffer offer = SshAccess.inspectKey(this);
             runOnUiThread(() -> confirm("确认 CP 主机指纹", "地址：" + offer.host + "\n请确认这是车内 CP。重启后密钥变化也需要重新确认。\n\n" + offer.fingerprint, () -> {
                 if (!offer.host.equals(SshAccess.host(this))) {error("CP 地址已变化，请重新检测主机指纹"); return;}
-                prefs().edit().putString("sshKnown", offer.host + " " + offer.type + " " + offer.key).apply();
+                prefs().edit().putString("sshKnown", offer.host + " " + offer.type + " " + offer.key).putBoolean("sshKeyChanged", false).apply();
                 state.report("已保存当前 CP 主机指纹，后续严格匹配。");
                 updateConnection();
             }));
         }))));
         link.add(g);
-        link.footer(null, ui.button("连接并读取运行状态", Ui.Look.PRIMARY, click(() -> {String p = pass(); task("检测 CP SSH", () -> state.report(audio().status(p)));})));
-
-        // 1 · AVAS
-        Pane avas = new Pane(0, 1);
-        avas.add(ui.callout("现场验收：", "实际声音和音量必须现场验收；配置检查不能替代声学及适用地区要求。", Ui.Tone.WARN));
-        avas.caption("音频");
-        LinearLayout sound = ui.group();
-        Ui.SwitchRow custom = toggleRow("useAvas", "使用自定义音频（最长 30 秒）", "尚未选择音频", false);
-        useAvasAudio = custom.toggle;
-        avasFileText = custom.hint;
-        ui.addRow(sound, custom.view);
-        ui.addRow(sound, ui.actionRow("选择 AVAS 音频", Ui.Tone.ACCENT, click(() -> pick(12, "audio/*"))));
-        ui.addRow(sound, ui.actionRow("在本机试听所选音频", Ui.Tone.ACCENT, click(() -> preview(avasAudio))));
-        avas.add(sound);
-        avas.caption("曲线");
-        LinearLayout curves = ui.group();
-        Ui.SwitchRow curve = toggleRow("useCurves", "使用自定义音量 / 速度曲线", "", false);
-        useCurves = curve.toggle;
-        ui.addRow(curves, curve.view);
-        LinearLayout inputs = ui.horizontal();
-        inputs.setGravity(Gravity.TOP);
-        forward = field(inputs, "forward", "正向速度点\n0/5/10/15/20/25/30 km/h", prefs().getString("forward", ""), InputType.TYPE_CLASS_TEXT, "7 个数值，逗号分隔", "", 1);
-        reverse = field(inputs, "reverse", "倒车曲线\n7 个数值，逗号分隔", prefs().getString("reverse", ""), InputType.TYPE_CLASS_TEXT, "7 个数值，逗号分隔", "", 1);
-        avasGain = field(inputs, "avasGain", "曲线总音量\n50–200%，默认 100", Integer.toString(prefs().getInt("avasGain", 100)), InputType.TYPE_CLASS_NUMBER, "100", "%", 1);
-        ui.addRow(curves, inputs);
-        ui.addRow(curves, ui.actionRow("读取当前固件的原曲线", Ui.Tone.ACCENT, click(() -> {
-            String p = pass();
-            task("读取 AVAS 曲线", () -> {
-                int[][] read = audio().curves(p);
-                runOnUiThread(() -> {if (forward != null) {forward.setText(AudioEngine.join(read[0])); reverse.setText(AudioEngine.join(read[1])); useCurves.setChecked(true);}});
-                state.report("已读取曲线，不采用其他车型的默认数值。尚未修改 CP。");
-            });
-        })));
-        avas.add(curves);
-        avas.footer(ui.button("恢复 AVAS 默认资源并开启服务", Ui.Look.TINT, click(() -> {String p = pass(); parked("恢复 AVAS 默认", "仅移除仪表工坊自己的覆盖；检测到其他工具覆盖会停止。", () -> task("恢复 AVAS", () -> audio().restore(p, "avas")));})),
-            ui.button("应用 AVAS 设置", Ui.Look.PRIMARY, click(() -> {
-                try {
-                    String p = pass();
-                    File f = useAvasAudio.isChecked() ? avasAudio : null;
-                    FilesEx.require(!useAvasAudio.isChecked() || f != null, "请先选择音频");
-                    int[] a = useCurves.isChecked() ? AudioEngine.parseOptional(forward.getText().toString()) : null, b = useCurves.isChecked() ? AudioEngine.parseOptional(reverse.getText().toString()) : null;
-                    int gain = Integer.parseInt(avasGain.getText().toString());
-                    parked("应用 AVAS 设置", "将短暂重启 AVAS 服务。不会写入原始资源；失败时尝试恢复上一覆盖。", () -> task("应用 AVAS", () -> audio().applyAvas(p, f, a, b, gain)));
-                } catch (Exception e) {error(e.getMessage());}
-            })));
-
-        // 2 · lock tone
-        Pane lock = new Pane(0, 2);
-        LinearLayout lg = ui.group();
-        lockFileText = ui.text("尚未选择音频", 26, ui.muted, false);
-        ui.addRow(lg, ui.infoRow(lockFileText));
-        ui.addRow(lg, ui.actionRow("选择锁车音频", Ui.Tone.ACCENT, click(() -> pick(13, "audio/*"))));
-        ui.addRow(lg, ui.actionRow("在本机试听锁车音频", Ui.Tone.ACCENT, click(() -> preview(lockAudio))));
-        ui.divide(lg);
-        lockGain = field(lg, "lockGain", "播放音量（25–200%，带峰值限制）", Integer.toString(prefs().getInt("lockGain", 100)), InputType.TYPE_CLASS_NUMBER, "100", "%", 0);
-        lock.add(lg);
-        lock.footer(ui.button("恢复默认锁车提示音", Ui.Look.TINT, click(() -> {String p = pass(); parked("恢复锁车声", "撤销本应用的锁车声覆盖并重启音效服务。", () -> task("恢复锁车声", () -> audio().restore(p, "lock")));})),
-            ui.button("应用锁车提示音", Ui.Look.PRIMARY, click(() -> {
-                try {
-                    FilesEx.require(lockAudio != null, "请先选择音频");
-                    String p = pass();
-                    File f = lockAudio;
-                    int gain = Integer.parseInt(lockGain.getText().toString());
-                    parked("应用锁车提示音", "将短暂重启仪表音效服务，期间提示音可能不可用。", () -> task("应用锁车声", () -> audio().applyLock(p, f, gain)));
-                } catch (Exception e) {error(e.getMessage());}
-            })));
-
-        // 3 · saved settings
-        Pane saved = new Pane(0, 3);
-        LinearLayout sg = ui.group();
-        Ui.SwitchRow boot = ui.switchRow("开机尝试恢复已保存的 AVAS / 锁车音效", "默认关闭；仅在能独立确认 P 挡且零车速时执行", prefs().getBoolean("reapply", false));
-        boot.toggle.setOnCheckedChangeListener((b, on) -> {
-            if (!on) {prefs().edit().putBoolean("reapply", false).apply(); updateConnection(); return;}
-            new UiDialog(this, ui, "启用开机音效恢复")
-                .message("仅在能独立确认 P 挡、速度为零时执行；无法确认或 SSH 指纹变化时停止并提示。临时静音和 AVAS 停止不会开机重放。仅支持空密码自动连接。该自动功能需要实车验收。")
-                .negative("取消", () -> boot.toggle.setChecked(false))
-                .positive("启用", Ui.Look.PRIMARY, () -> {prefs().edit().putBoolean("reapply", true).apply(); updateConnection();})
-                .onCancel(() -> boot.toggle.setChecked(false))
-                .show();
-        });
-        ui.addRow(sg, boot.view);
-        saved.add(sg);
-        saved.footer(null, ui.button("手动重新应用已保存音效", Ui.Look.PRIMARY, click(() -> {String p = pass(); parked("重新应用音效", "使用已保存音频和曲线，短暂重启对应服务。", () -> task("重新应用音效", () -> audio().reapplySaved(p)));})));
-
-        // 4 · parked tests
-        Pane test = new Pane(0, 4);
-        test.add(ui.callout("驻车测试：", "AVAS 与车辆提示音承担安全提醒作用。以下静音操作只用于驻车测试，不保存为开机设置，离开测试前必须恢复。", Ui.Tone.WARN));
-        LinearLayout tg = ui.group();
-        ui.addRow(tg, ui.actionRow("临时停止 AVAS", Ui.Tone.WARN, click(() -> {String p = pass(); parked("临时停止行人提示音", "行人将无法通过此声音判断车辆接近。确认仅在静止测试中使用。", () -> confirm("再次确认停止 AVAS", "测试结束后请立即开启 AVAS，禁止在道路行驶中使用静音状态。", () -> task("驻车测试：停止 AVAS", () -> audio().avasEnabled(p, false))));})));
-        ui.addRow(tg, ui.actionRow("开启 AVAS 服务", Ui.Tone.NEUTRAL, click(() -> {String p = pass(); task("开启 AVAS", () -> audio().avasEnabled(p, true));})));
-        ui.addRow(tg, ui.actionRow("临时静音启用 / 退出提示（含巡航）", Ui.Tone.WARN, click(() -> {String p = pass(); parked("通用功能提示音测试", "这两项资源除巡航外也可能被其他功能使用。仅限驻车测试，不改变巡航控制逻辑；不得在行驶中使用。", () -> task("通用提示音驻车测试", () -> audio().muteCruiseForTest(p)));})));
-        ui.addRow(tg, ui.actionRow("恢复巡航提示音", Ui.Tone.NEUTRAL, click(() -> {String p = pass(); parked("恢复巡航提示音", "移除本应用的两项覆盖并重启音效服务。", () -> task("恢复巡航提示音", () -> audio().restore(p, "cruise")));})));
-        test.add(tg);
-
-        return new View[]{link.root, avas.root, lock.root, saved.root, test.root};
+        link.footer(ui.button("恢复旧版覆盖", Ui.Look.TINT, click(() -> {String p = pass(); parked("恢复旧版音效覆盖", "恢复本应用旧版 AVAS、锁车及通用提示音的临时覆盖。", () -> task("恢复旧版音效覆盖", () -> audio().restoreLegacy(p)));})),
+            ui.button("读取实际提示音", Ui.Look.PRIMARY, click(() -> {if (soundPanel != null) {soundPanel.refresh(); select(0, 1);}})));
+        try {
+            soundPanel = new SoundPanel(this, ui, state, this::pass);
+            return new View[]{link.root, soundPanel.directory(), soundPanel.presets(), soundPanel.automatic(), soundPanel.help()};
+        } catch (Exception e) {
+            soundPanel = null;
+            View[] result = new View[5]; result[0] = link.root;
+            for (int i = 1; i < 5; i++) result[i] = ui.text("声音目录未加载：" + e.getMessage(), 30, ui.danger, false);
+            return result;
+        }
     }
 
     private void updateConnection() {
@@ -483,13 +435,6 @@ public final class MainActivity extends Activity {
         ui.setChip(fingerprintChip, known ? "指纹已确认" : "指纹未确认", known ? Ui.Tone.OK : Ui.Tone.WARN);
         cpAddressText.setText(SshAccess.host(this) + " : 22  ·  root");
         navSub[0][0].setText(SshAccess.host(this) + " · " + (known ? "指纹已确认" : "指纹未确认"));
-        navSub[0][3].setText("开机恢复：" + (prefs().getBoolean("reapply", false) ? "开启" : "关闭"));
-    }
-
-    private void restoreAudioLabels() {
-        String a = prefs().getString("draftAvas", prefs().getString("avasFile", "")), l = prefs().getString("draftLock", prefs().getString("lockFile", ""));
-        if (!a.isEmpty() && new File(a).isFile()) {avasAudio = new File(a); avasFileText.setText("已选择本机 WAV：" + avasAudio.getName());}
-        if (!l.isEmpty() && new File(l).isFile()) {lockAudio = new File(l); lockFileText.setText("已选择本机 WAV：" + lockAudio.getName());}
     }
 
     // ---------------------------------------------------------------- workshop panes
@@ -515,20 +460,23 @@ public final class MainActivity extends Activity {
         device.footer(ui.button("已有镜像 → 进入第 2 步", Ui.Look.TINT, click(() -> select(1, 1))), ui.button("识别并导出完整备份", Ui.Look.PRIMARY, click(this::beginExport)));
 
         // 1 · library
-        Pane library = new Pane(1, 1);
-        library.note("先在下方选择一份来源镜像，再查看 SSH / 密码状态并勾选修改。生成的是独立副本，原备份保持不变；选中不等于允许写入。");
+        Pane library = new Pane(1, 1, "选择镜像", true);
+        Pane editor = new Pane(1, 1, "配置与操作", true);
+        library.root.setTag("image-selection"); editor.root.setTag("image-configuration");
+        library.note("选择来源镜像，在右侧查看状态、调整配置并生成副本。");
+        editor.note("修改会生成独立副本。选中镜像后仍需在第 3 步复核写入。");
         Button importImage = ui.button("从本机 / U 盘导入镜像", Ui.Look.TINT, click(() -> pick(11, "application/octet-stream")));
         importImage.setMinimumHeight(ui.px(96));
         library.add(importImage);
         library.caption("镜像库 · 选择一份来源镜像");
         imageList = ui.group();
         library.add(imageList);
-        library.caption("所选镜像");
+        editor.caption("所选镜像");
         LinearLayout info = ui.group();
         selectedText = ui.text("请先选择一份镜像", 26, ui.ink, false);
         ui.addRow(info, ui.infoRow(selectedText));
-        library.add(info);
-        library.caption("需要进行的修改（可多选）");
+        editor.add(info);
+        editor.caption("需要进行的修改（可多选）");
         LinearLayout options = ui.group();
         Ui.SwitchRow ssh = toggleRow("enableSsh", "开启 SSH 开机监听（22 端口）", "", false);
         Ui.SwitchRow blank = toggleRow("clearRoot", "清除 root 密码，允许空密码登录", "", false);
@@ -536,8 +484,8 @@ public final class MainActivity extends Activity {
         clearRoot = blank.toggle;
         ui.addRow(options, ssh.view);
         ui.addRow(options, blank.view);
-        library.add(options);
-        library.add(ui.callout("注意：", "空密码会让能够访问此 SSH 入口的一方获得 root 权限。锁定账号或未知认证配置不会被静默改写。", Ui.Tone.WARN));
+        editor.add(options);
+        editor.add(ui.callout("注意：", "空密码会让能够访问此 SSH 入口的一方获得 root 权限。锁定账号或未知认证配置不会被静默改写。", Ui.Tone.WARN));
         LinearLayout actions = ui.group();
         ui.addRow(actions, ui.actionRow("重新读取并校验所选镜像", Ui.Tone.ACCENT, click(() -> withStorage("重新校验镜像", () -> {ImageRecord r = chosen(); state.workshop.verifyGenerated(r); state.report(r.message);}))));
         ui.addRow(actions, ui.actionRow("确认镜像分类（仅待分类导出）", Ui.Tone.NEUTRAL, click(() -> {try {classify(chosen());} catch (Exception e) {error(e.getMessage());}})));
@@ -550,8 +498,11 @@ public final class MainActivity extends Activity {
         })));
         ui.addRow(actions, ui.actionRow("刷新镜像存储列表", Ui.Tone.NEUTRAL, click(this::refreshLibrary)));
         ui.addRow(actions, ui.actionRow("删除所选镜像（保留备份保护）", Ui.Tone.DANGER, click(this::deleteSelected)));
-        library.add(actions);
-        library.footer(ui.button("无需修改 → 第 3 步", Ui.Look.TINT, click(() -> {try {chosen(); select(1, 2);} catch (Exception e) {error(e.getMessage());}})), ui.button("生成新的修改镜像", Ui.Look.PRIMARY, click(() -> {
+        editor.add(actions);
+        editor.footer.setOrientation(LinearLayout.VERTICAL); editor.footer.setGravity(Gravity.FILL_HORIZONTAL);
+        editor.footer.setVisibility(View.VISIBLE);
+        editor.footer.addView(ui.button("无需修改 → 第 3 步", Ui.Look.TINT, click(() -> {try {chosen(); select(1, 2);} catch (Exception e) {error(e.getMessage());}})), ui.lp(Ui.MATCH, ui.px(88)));
+        editor.footer.addView(ui.button("生成新的修改镜像", Ui.Look.PRIMARY, click(() -> {
             boolean sshOn = enableSsh.isChecked(), blankOn = clearRoot.isChecked();
             if (!sshOn && !blankOn) {error("请先勾选需要进行的修改；如果无需修改，可直接进入第 3 步复核。"); return;}
             withStorage("生成镜像", () -> {
@@ -561,7 +512,12 @@ public final class MainActivity extends Activity {
                 state.report("新镜像生成并完整复核通过，原文件未改变；尚未刷写。");
                 runOnUiThread(() -> {refreshLibrary(); select(1, 2);});
             });
-        })));
+        })), ui.lp(Ui.MATCH, ui.px(96), 0, ui.px(12), 0, 0));
+        LinearLayout imageWorkspace = ui.compact ? ui.vertical() : ui.horizontal(); imageWorkspace.setTag("image-workspace");
+        imageWorkspace.addView(library.root, ui.compact ? ui.lp(Ui.MATCH, 0, 1) : ui.lp(0, Ui.MATCH, 1));
+        LinearLayout.LayoutParams editorLayout = ui.compact ? ui.lp(Ui.MATCH, 0, 1) : ui.lp(0, Ui.MATCH, 1.1f);
+        if (ui.compact) editorLayout.topMargin = ui.px(18); else editorLayout.leftMargin = ui.px(20);
+        imageWorkspace.addView(editor.root, editorLayout);
 
         // 2 · write and delete
         Pane danger = new Pane(1, 2);
@@ -590,7 +546,7 @@ public final class MainActivity extends Activity {
         ui.addRow(ag, ui.actionRow("版本、数据说明与开源许可", Ui.Tone.NEUTRAL, click(this::licenses)));
         audit.add(ag);
 
-        return new View[]{device.root, library.root, danger.root, audit.root};
+        return new View[]{device.root, imageWorkspace, danger.root, audit.root};
     }
 
     private ImageRecord chosen() throws Exception {
@@ -619,9 +575,9 @@ public final class MainActivity extends Activity {
                 writeRow.setAlpha(.5f);
             } else {
                 ImageRecord r = state.library.get(state.selected);
-                selectedText.setText(r.name + "\n" + r.categoryLabel() + "\nSSH 配置：" + sshLabel(r.socket) + "  / root 密码：" + passwordLabel(r.password) + "\n允许空密码参数：" + (r.blankAllowed ? "是" : "否 / 未知")
+                selectedText.setText(I18n.literal(r.name) + "\n" + r.categoryLabel() + "\nSSH 配置：" + sshLabel(r.socket) + "  / root 密码：" + passwordLabel(r.password) + "\n允许空密码参数：" + (r.blankAllowed ? "是" : "否 / 未知")
                     + "\n固件基线：" + (r.build.isEmpty() ? "未知" : r.build.substring(0, 12)) + "\nSHA-256：" + r.sha + "\n" + r.message);
-                dangerInfo.setText(r.name + "\n" + r.categoryLabel() + "\n" + (r.validated ? "结构已校验，可进入写入确认；仍需确认本机备份和兼容性" : "尚未通过结构校验：写入已锁定，请先重新校验"));
+                dangerInfo.setText(I18n.literal(r.name) + "\n" + r.categoryLabel() + "\n" + (r.validated ? "结构已校验，可进入写入确认；仍需确认本机备份和兼容性" : "尚未通过结构校验：写入已锁定，请先重新校验"));
                 writeRow.setAlpha(r.validated ? 1f : .5f);
             }
         } catch (Exception e) {
@@ -632,33 +588,33 @@ public final class MainActivity extends Activity {
     private View imageRow(ImageRecord r) {
         boolean selected = r.id.equals(state.selected);
         LinearLayout row = ui.horizontal();
-        row.setMinimumHeight(ui.px(124));
-        row.setPadding(ui.px(26), ui.px(16), ui.px(26), ui.px(16));
+        row.setMinimumHeight(ui.px(164));
+        row.setPadding(ui.px(20), ui.px(20), ui.px(20), ui.px(20));
         row.setClickable(true);
         row.setFocusable(true);
         row.setBackground(ui.interactive(selected ? ui.accentTint : 0, 0, 0));
-        row.addView(ui.radio(selected), ui.lp(ui.px(40), ui.px(40), 0, 0, ui.px(24), 0));
+        row.addView(ui.radio(selected), ui.lp(ui.px(32), ui.px(32), 0, 0, ui.px(18), 0));
         LinearLayout col = ui.vertical();
-        col.addView(ui.text(r.name, 30, ui.ink, true));
+        TextView name = ui.text(I18n.literal(r.name), 28, ui.ink, true); name.setMaxLines(2); name.setEllipsize(TextUtils.TruncateAt.END); col.addView(name);
         LinearLayout meta = ui.horizontal();
         Ui.Tone tone = switch (r.category) {case "ORIGINAL" -> Ui.Tone.OK; case "MODIFIED" -> Ui.Tone.ACCENT; case "IMPORTED" -> Ui.Tone.NEUTRAL; default -> Ui.Tone.WARN;};
-        meta.addView(ui.chip(r.categoryLabel(), tone), ui.lp(Ui.WRAP, ui.px(52), 0, ui.px(8), ui.px(16), 0));
-        TextView facts = ui.text((r.slot.isEmpty() ? "未绑定槽位" : r.slot) + "  ·  " + (r.bytes / (1024 * 1024)) + " MiB  ·  " + (r.validated ? "结构已校验" : "待检查 / 检查未通过"), 24, r.validated ? ui.ok : ui.warn, false);
-        meta.addView(facts, ui.lp(Ui.WRAP, Ui.WRAP, 0, ui.px(8), 0, 0));
+        meta.addView(ui.chip(r.categoryLabel(), tone), ui.lp(Ui.WRAP, ui.px(44), 0, ui.px(10), ui.px(12), 0));
+        if (r.original()) meta.addView(ui.chip("删除受保护", Ui.Tone.WARN), ui.lp(Ui.WRAP, ui.px(44), 0, ui.px(10), 0, 0));
         col.addView(meta);
+        TextView facts = ui.text((r.slot.isEmpty() ? "未绑定槽位" : r.slot) + "  ·  " + (r.bytes / (1024 * 1024)) + " MiB  ·  " + (r.validated ? "结构已校验" : "待检查 / 检查未通过"), 22, r.validated ? ui.ok : ui.warn, false);
+        col.addView(facts, ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(10), 0, 0));
         row.addView(col, ui.lp(0, Ui.WRAP, 1));
-        if (r.original()) row.addView(ui.chip("删除受保护", Ui.Tone.WARN));
         row.setOnClickListener(v -> {if (state.busy.get()) {error("任务进行中，暂不能更换所选镜像"); return;} state.selected = r.id; refreshLibrary();});
         return row;
     }
 
     // ---------------------------------------------------------------- dialogs
 
-    private void error(String s) {
+    void error(String s) {
         new UiDialog(this, ui, "操作未开始").message(s == null ? "未知错误" : s).positive("知道了", Ui.Look.PRIMARY, null).show();
     }
 
-    private void task(String label, AppState.Job job) {try {state.submit(label, job);} catch (Exception e) {error(e.getMessage());}}
+    void task(String label, AppState.Job job) {try {state.submit(label, job);} catch (Exception e) {error(e.getMessage());}}
     private void withStorage(String label, AppState.Job job) {
         if (!requireStorage()) return;
         try {state.storage(); task(label, job);} catch (Exception e) {error(e.getMessage());}
@@ -671,7 +627,7 @@ public final class MainActivity extends Activity {
         permissionText.setTextColor(granted ? ui.ok : ui.warn);
     }
 
-    private boolean requireStorage() {
+    boolean requireStorage() {
         if (Environment.isExternalStorageManager()) return true;
         new UiDialog(this, ui, "需要文件管理权限")
             .message("用于保存完整分区备份、读取本机 / U 盘镜像及音频。请到 EVCC 的仪表工坊权限页授予“所有文件访问权限”。返回后会自动检查，但不会自动开始导出或写入，请重新点击操作。")
@@ -698,12 +654,12 @@ public final class MainActivity extends Activity {
         LinearLayout content = ui.vertical();
         EditText address = ui.field(content, "CP IPv4 地址", SshAccess.host(this), InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI, CpAddress.DEFAULT, "", 0);
         new UiDialog(this, ui, "修改 CP 连接地址").view(content)
-            .message("仅影响 AVAS / 提示音的 SSH 连接；端口 22，用户 root。不会改变本机分区识别或写入目标。地址变化后需要重新确认指纹，开机音效恢复会关闭。")
+            .message("仅影响仪表提示音的 SSH 连接；端口 22，用户 root。不会改变本机分区识别或写入目标。地址变化后需要重新确认指纹，自动覆盖会关闭。")
             .negative("取消", null).positive("保存地址", Ui.Look.PRIMARY, () -> {
                 try {
                     FilesEx.require(!state.busy.get(), "已有任务运行，请结束后再修改");
                     String host = CpAddress.parse(address.getText().toString());
-                    if (!host.equals(SshAccess.host(this))) prefs().edit().putString("cpHost", host).remove("sshKnown").putBoolean("reapply", false).apply();
+                    if (!host.equals(SshAccess.host(this))) prefs().edit().putString("cpHost", host).remove("sshKnown").putBoolean("sshKeyChanged", false).putBoolean("reapply", false).putBoolean("soundAutoApply", false).apply();
                     render(getResources().getConfiguration());
                 } catch (Exception e) {error(e.getMessage());}
             }).show();
@@ -728,7 +684,7 @@ public final class MainActivity extends Activity {
         new UiDialog(this, ui, title).message(message).negative("取消", null).positive("确认", Ui.Look.PRIMARY, yes).show();
     }
 
-    private void parked(String title, String warning, Runnable yes) {
+    void parked(String title, String warning, Runnable yes) {
         LinearLayout l = ui.vertical();
         l.addView(ui.text(warning, 30, ui.ink, false), ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(12)));
         Ui.Toggle c = ui.checkRow(l, "车辆已 P 挡驻车，期间不会驾驶", false);
@@ -763,7 +719,7 @@ public final class MainActivity extends Activity {
         try {
             FilesEx.require(!state.busy.get(), "任务进行中，暂不能删除镜像");
             ImageRecord r = chosen();
-            confirm("删除镜像记录？", r.name + "\n文件将移入镜像库的 deleted 暂存目录，可人工恢复；不会触碰车辆分区。", () -> {
+            confirm("删除镜像记录？", I18n.literal(r.name) + "\n文件将移入镜像库的 deleted 暂存目录，可人工恢复；不会触碰车辆分区。", () -> {
                 if (r.original()) withStorage("检查剩余原始备份", () -> {
                     int remaining = state.library.remainingOriginals(r);
                     FilesEx.require(remaining > 0, "禁止删除最后一份有效原始镜像");
@@ -783,7 +739,7 @@ public final class MainActivity extends Activity {
             ImageRecord r = chosen();
             FilesEx.require(r.validated, "请先完成镜像校验");
             LinearLayout l = ui.vertical();
-            UiDialog dialog = new UiDialog(this, ui, "写入前必须确认 · " + r.name).view(l);
+            UiDialog dialog = new UiDialog(this, ui, "写入前必须确认 · " + I18n.literal(r.name)).view(l);
             dialog.heading("风险提示", ui.danger).message("写入镜像可能破坏仪表盘系统，造成仪表故障、车机或远程连接不可用等严重后果，可能必须到售后自费维修。备份、校验通过及保留 A/B 槽位都不能保证恢复成功，也不能消除启动失败风险。请确认您能够承担这些风险。");
             dialog.heading("操作要求", ui.ink).message("全程保持车辆通电和稳定供电，禁止断电、休眠、重启或 OTA 升级。请保持本应用在前台，尽量不要运行其他软件，尤其是高负载任务；不要强行停止应用。\n\n将写入重新识别出的当前 CP 槽位，不是 Android 槽位。完成全量回读前不要离开；本应用不会自动切槽或重启。");
             LinearLayout checks = ui.vertical();
@@ -807,7 +763,7 @@ public final class MainActivity extends Activity {
     }
 
     private void licenses() {
-        String[] labels = {"仪表工坊 0.1.0 测试版 · 数据与组件说明", "EROFS GPL-2.0-or-later", "JSch BSD", "JZlib BSD", "jBCrypt ISC"};
+        String[] labels = {"仪表工坊 0.2.3 测试版 · 数据与组件说明", "EROFS GPL-2.0-or-later", "JSch BSD", "JZlib BSD", "jBCrypt ISC"};
         String[] paths = {"licenses/NOTICE.txt", "licenses/erofs/GPL-2.0", "licenses/jsch/LICENSE.txt", "licenses/jsch/LICENSE.JZlib.txt", "licenses/jsch/LICENSE.jBCrypt.txt"};
         new UiDialog(this, ui, "本机说明与开源许可").items(labels, w -> {
             try (InputStream in = getAssets().open(paths[w])) {
@@ -852,7 +808,7 @@ public final class MainActivity extends Activity {
                 state.report("另存并回读校验通过：\n" + target + "\n镜像库原文件未改变。");
             } else {
                 File log = new File(getFilesDir(), "last-task.log");
-                String report = "仪表工坊 0.1.0\n" + (log.isFile() ? FilesEx.readText(log) : state.status);
+                String report = "仪表工坊 0.2.3\n" + (log.isFile() ? FilesEx.readText(log) : state.status);
                 FilesEx.require(target.createNewFile(), "同名文件已存在，拒绝覆盖");
                 try (FileOutputStream out = new FileOutputStream(target)) {out.write(report.getBytes(java.nio.charset.StandardCharsets.UTF_8)); out.getFD().sync();}
                 state.report("诊断记录已导出：\n" + target + "\n不包含密码或 shadow 密码字段。");
@@ -884,38 +840,38 @@ public final class MainActivity extends Activity {
                     state.report("导入与结构检查完成，尚未证明与当前分区兼容。");
                 }
             });
-        } else if (request == 12 || request == 13) {
-            task("解码并规范化音频", () -> {
-                byte[] wav = AudioImport.decode(this, uri, 100);
-                File dir = new File(getFilesDir(), "audio");
-                FilesEx.require(dir.isDirectory() || dir.mkdir(), "无法创建音频目录");
-                File file = new File(dir, UUID.randomUUID() + ".wav");
-                try (FileOutputStream out = new FileOutputStream(file)) {out.write(wav); out.getFD().sync();}
-                prefs().edit().putString(request == 12 ? "draftAvas" : "draftLock", file.toString()).apply();
-                runOnUiThread(() -> {
-                    if (request == 12) {
-                        avasAudio = file;
-                        if (avasFileText != null) {avasFileText.setText("已导入：48 kHz / 单声道 / PCM 16-bit"); useAvasAudio.setChecked(true);}
-                    } else {
-                        lockAudio = file;
-                        if (lockFileText != null) lockFileText.setText("已导入：48 kHz / 单声道 / PCM 16-bit");
-                    }
-                });
-                state.report("音频已保存到本机，尚未应用到 CP。");
-            });
         }
     }
 
-    private void preview(File f) {
+    void stopPreview() {
+        if (player != null) {player.release(); player = null;}
+        if (previewFocus != null) {AudioFocusRequest request = previewFocus; previewFocus = null; getSystemService(AudioManager.class).abandonAudioFocusRequest(request);}
+        Runnable done = previewDone; previewDone = null; if (done != null) done.run();
+    }
+    void preview(File f, Runnable done) {
+        previewFocusResult = -1;
         try {
             FilesEx.require(f != null && f.isFile(), "请先选择音频");
-            if (player != null) player.release();
-            player = new MediaPlayer();
-            player.setDataSource(f.toString());
+            stopPreview(); previewDone = done;
+            byte[] source = java.nio.file.Files.readAllBytes(f.toPath()), prepared = SoundPreview.prepare(source);
+            File playback = f;
+            if (prepared != source) {
+                playback = new File(getCacheDir(), "short-sound-preview.wav");
+                try (FileOutputStream out = new FileOutputStream(playback)) {out.write(prepared);}
+            }
+            AudioAttributes attributes = new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
+            MediaPlayer candidate = new MediaPlayer(); player = candidate;
+            player.setAudioAttributes(attributes); player.setVolume(1f, 1f);
+            player.setDataSource(playback.toString());
+            player.setOnCompletionListener(p -> stopPreview());
+            player.setOnErrorListener((p, what, extra) -> {stopPreview(); error("音频播放失败：" + what + " / " + extra); return true;});
             player.prepare();
-            player.start();
-            Runnable stop = () -> {if (player != null && player.isPlaying()) player.stop();};
-            new UiDialog(this, ui, "本机试听（不是 CP 播放）").message("正在通过 Android 音频输出试听。实际车辆提示音需另行验收。").positive("停止", Ui.Look.PRIMARY, stop).onCancel(stop).show();
-        } catch (Exception e) {error(e.getMessage());}
+            previewFocus = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+                .setAudioAttributes(attributes).setAcceptsDelayedFocusGain(false).setWillPauseWhenDucked(true)
+                .setOnAudioFocusChangeListener(change -> {if (change < 0 && player == candidate) stopPreview();}, clock).build();
+            previewFocusResult = getSystemService(AudioManager.class).requestAudioFocus(previewFocus);
+            FilesEx.require(previewFocusResult == AudioManager.AUDIOFOCUS_REQUEST_GRANTED, "系统暂不允许媒体试听，请确认车机正常上电，并结束语音或通话后重试");
+            if (player == candidate) player.start();
+        } catch (Exception e) {android.util.Log.w("SoundPreview", "Preview could not start", e); stopPreview(); error(e.getMessage());}
     }
 }

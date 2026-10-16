@@ -1,77 +1,192 @@
 package com.kooo.evdashboard;
 
 import android.content.Context;
-import android.content.SharedPreferences;
 import com.kooo.evdashboard.core.*;
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.function.Consumer;
 
-/** SSH runtime resource overlays. Never modifies the firmware partition. */
+/** Discovers actual CP resources and applies a complete configuration with temporary bind mounts. */
 final class AudioEngine {
-    private static final String ROOT="/run/instrument-workshop",AVAS="/usr/avas/sound_type_1";
-    private static final String CHIMES="/usr/share/chime-contents/V3_Geely_DNA_DHU/";
-    private static final String LOCK="V3_Vehicle_Locked_Single.wav";
-    private static final String[] CRUISE={"V3_Function_Enabled_Successful_Single.wav","V3_Function_Exited_Single.wav"};
-    private final Context context;private final Consumer<String> progress;private boolean automatic;
-    AudioEngine(Context c,Consumer<String> log){context=c;progress=log;}
-    private static String q(String s){return FilesEx.quote(s);}
-    String status(String password)throws Exception{try(SshAccess ssh=new SshAccess(context)){ssh.connect(password);return ssh.text("printf 'CP uptime: '; cat /proc/uptime; printf '\\nSSH 用户: '; id -u; printf '\\nAVAS: '; systemctl is-active app_1.8.service || :; printf '\\n提示音: '; systemctl is-active cluster-cmw-audioplay.service || :; printf '\\n覆盖: '; awk '$5 ~ /^\\/usr\\/(avas|share\\/chime-contents)/ {print $5, $4}' /proc/self/mountinfo",12);}}
-    int[][] curves(String password)throws Exception{try(SshAccess ssh=new SshAccess(context)){ssh.connect(password);int[][] result=new int[2][];for(int i=0;i<2;i++){String name=i==0?"tuning_5w.txt":"tuning_5w_r.txt";String base=ROOT+"/factory-avas/"+name;byte[] data=ssh.command("if [ -f "+q(base)+" ]; then cat "+q(base)+"; else cat "+q(AVAS+"/"+name)+"; fi",null,12);result[i]=TuningCurve.values(data);}return result;}}
-    private void establish(SshAccess ssh)throws Exception{ssh.text("set -e; test \"$(id -u)\" = 0; test -d /run; mkdir -p "+q(ROOT)+"; chmod 700 "+q(ROOT),10);}
-    /** Refuse overlays owned by other software instead of unmounting them. */
-    private String ownership(String target){return "mounted=$(awk -v dst="+q(target)+" '$5==dst {print $4}' /proc/self/mountinfo); case \"$mounted\" in '') ;; /instrument-workshop/*|/run/instrument-workshop/*) ;; *) echo '检测到其他工具覆盖，请先在原工具恢复默认' >&2; exit 62;; esac; ";}
-    private void factory(SshAccess ssh,String target,String dest)throws Exception{
-        ssh.text("set -e; "+ownership(target)+"if [ ! -e "+q(dest)+" ]; then test -z \"$mounted\"; cp -a "+q(target)+" "+q(dest)+"; fi",30);
+    private static final String ROOT = AudioPlan.ROOT;
+    private final Context context;
+    private final Consumer<String> progress;
+    private final TaskProgress measured;
+    private final SoundCatalog catalog;
+    private final SoundStore store;
+    private int lastDownloaded;
+    AudioEngine(Context context, Consumer<String> progress) throws Exception {
+        this.context = context; this.progress = progress; catalog = catalog(context); store = store(context, catalog);
+        measured = context.getApplicationContext() instanceof AppState ? ((AppState) context.getApplicationContext()).progress : null;
     }
-    private String staged(SshAccess ssh)throws Exception{String path=ROOT+"/stage-"+UUID.randomUUID();ssh.text("set -e; test \"$(df -k /run | tail -n 1 | awk '{print $4}')\" -gt 32768; mkdir "+q(path),10);return path;}
-    private void switchResources(SshAccess ssh,String target,String replacement,String service,String tag)throws Exception{
-        String job=staged(ssh);ssh.upload(job+"/operation.sh",AudioPlan.build(target,replacement,service,tag,job).getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        // The CP-side worker must survive an Android/SSH disconnect. Never replay an uncertain switch.
-        ssh.text("command -v nohup >/dev/null; nohup /bin/sh "+q(job+"/operation.sh")+" > "+q(job+"/operation.log")+" 2>&1 < /dev/null &",10);
-        long deadline=System.nanoTime()+120_000_000_000L;
-        while(System.nanoTime()<deadline){String result=ssh.text("if [ -f "+q(job+"/result")+" ]; then cat "+q(job+"/result")+"; fi",10).trim();if(!result.isEmpty()){FilesEx.require(result.equals("PASS"),"音效切换未完成："+result+"。恢复记录："+job);return;}Thread.sleep(500);}
-        throw new IOException("CP 音效任务仍未确认完成，不会重试。请读取运行状态及任务记录："+job);
-    }
-    private void activate(SshAccess ssh,String target,String replacement,String service,String tag)throws Exception{
-        if(automatic)ParkedProbe.requireParked(context);
-        switchResources(ssh,target,replacement,service,tag);
-    }
-    void applyAvas(String password,File audio,int[] forward,int[] reverse,int gain)throws Exception{
-        FilesEx.require((forward==null)==(reverse==null),"正向和倒车曲线必须同时提供");FilesEx.require(audio!=null||forward!=null,"请选择自定义音频或加载曲线");
-        FilesEx.require(gain>=50&&gain<=200,"曲线总音量必须为 50–200%");byte[] audioBytes=null;if(audio!=null){FilesEx.require(audio.isFile()&&audio.length()<=44+48000*30*2,"AVAS 音频缺失或过大");audioBytes=Files.readAllBytes(audio.toPath());WaveAudio.normalizedSamples(audioBytes);}
-        try(SshAccess ssh=new SshAccess(context)){ssh.connect(password);establish(ssh);factory(ssh,AVAS,ROOT+"/factory-avas");String dir=staged(ssh),copy=dir+"/avas";ssh.text("cp -a "+q(ROOT+"/factory-avas")+" "+q(copy),30);
-            if(audioBytes!=null){progress.accept("上传并校验 AVAS 音频…");ssh.upload(dir+"/audio.wav",audioBytes);ssh.text("set -e; found=0; for sound in "+q(copy)+"/*.wav "+q(copy)+"/*.WAV; do [ -f \"$sound\" ] || continue; cp "+q(dir+"/audio.wav")+" \"$sound\"; found=1; done; test \"$found\" = 1",15);}
-            if(forward!=null){String[] names={"tuning_5w.txt","tuning_5w_r.txt","tuning_5w_AU_INDO_MALA.txt","tuning_5w_r_AU_INDO_MALA.txt"};int count=0;for(String name:names){String exists=ssh.text("if [ -f "+q(ROOT+"/factory-avas/"+name)+" ]; then echo yes; fi",10).trim();if(!exists.equals("yes"))continue;byte[] original=ssh.command("cat "+q(ROOT+"/factory-avas/"+name),null,10);byte[] changed=TuningCurve.update(original,name.contains("5w_r")?reverse:forward,gain);String temp=dir+"/"+name;ssh.upload(temp,changed);ssh.text("cat "+q(temp)+" > "+q(copy+"/"+name),10);count++;}FilesEx.require(count>=2,"缺少支持的正向/倒车曲线文件");}
-            progress.accept("切换临时资源覆盖并检查 AVAS 服务…");activate(ssh,AVAS,copy,"app_1.8.service","avas");
+    static SoundCatalog catalog(Context context) throws Exception {
+        try (InputStream in = context.getAssets().open("sounds/catalog.json")) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream(); FilesEx.transfer(in, out);
+            return new SoundCatalog(out.toString(StandardCharsets.UTF_8.name()));
         }
-        SharedPreferences.Editor e=context.getSharedPreferences("settings",0).edit().putBoolean("avasApplied",true).putString("avasFile",audio==null?"":audio.toString()).putString("forward",join(forward)).putString("reverse",join(reverse)).putInt("avasGain",gain);e.apply();progress.accept("AVAS 资源及服务状态检查通过；实际声音、音量和提示效果仍需现场验收。");
     }
-    void applyLock(String password,File audio,int gain)throws Exception{
-        FilesEx.require(audio.isFile()&&audio.length()<=44+48000*30*2,"锁车音频缺失或过大");short[] pcm=WaveAudio.normalizedSamples(Files.readAllBytes(audio.toPath()));byte[] adjusted=WaveAudio.encodeMono(WaveAudio.convert(pcm,1,48000,gain),48000);
-        try(SshAccess ssh=new SshAccess(context)){ssh.connect(password);establish(ssh);String target=CHIMES+LOCK;factory(ssh,target,ROOT+"/factory-lock.wav");String stage=staged(ssh);ssh.upload(stage+"/lock.wav",adjusted);activate(ssh,target,stage+"/lock.wav","cluster-cmw-audioplay.service","lock");}
-        context.getSharedPreferences("settings",0).edit().putBoolean("lockApplied",true).putString("lockFile",audio.toString()).putInt("lockGain",gain).apply();progress.accept("锁车声临时覆盖已应用，请现场确认播放效果。");
+    static SoundStore store(Context context, SoundCatalog catalog) throws Exception {
+        return new SoundStore(new File(context.getFilesDir(), "instrument-sounds"), catalog);
     }
-    void restore(String password,String feature)throws Exception{
-        try(SshAccess ssh=new SshAccess(context)){ssh.connect(password);establish(ssh);
-            if(feature.equals("avas"))restoreOne(ssh,AVAS,"app_1.8.service","avas");
-            else if(feature.equals("lock"))restoreOne(ssh,CHIMES+LOCK,"cluster-cmw-audioplay.service","lock");
-            else if(feature.equals("cruise"))for(int i=0;i<CRUISE.length;i++)restoreOne(ssh,CHIMES+CRUISE[i],"cluster-cmw-audioplay.service","cruise-"+i);
-            else throw new IOException("未知音效类型");
+    static String identity(Context context) throws Exception {
+        return FilesEx.hashText(context.getSharedPreferences("settings", 0).getString("sshKnown", ""));
+    }
+    private static String q(String text) {return FilesEx.quote(text);}
+    private static boolean owned(String path) {return path.startsWith(ROOT + "/") || path.startsWith("/instrument-workshop/");}
+    private Map<String, String> mounts(SshAccess ssh) throws Exception {
+        Map<String, String> mounts = new HashMap<>();
+        for (String line : ssh.text("awk '$5 != \"/\" {print $5 \"\\t\" $4}' /proc/self/mountinfo", 12).split("\n")) {
+            String[] parts = line.split("\t"); if (parts.length == 2 && relevantMount(parts[0])) {FilesEx.require(!mounts.containsKey(parts[0]), "检测到叠加挂载，请先恢复其他覆盖"); mounts.put(parts[0], parts[1]);}
         }
-        if(!feature.equals("cruise"))context.getSharedPreferences("settings",0).edit().putBoolean(feature+"Applied",false).apply();progress.accept("已撤销本应用的覆盖并启动原服务。没有覆盖原始资源文件。");
+        return mounts;
     }
-    private void restoreOne(SshAccess ssh,String target,String service,String tag)throws Exception{
-        switchResources(ssh,target,"",service,tag);
+    private static boolean relevantMount(String target) {
+        for (String root : SoundCatalog.ROOTS) if (target.startsWith(root) || root.startsWith(target + "/") || root.equals(target + "/")) return true;
+        return false;
     }
-    void avasEnabled(String password,boolean enabled)throws Exception{try(SshAccess ssh=new SshAccess(context)){ssh.connect(password);ssh.text("systemctl "+(enabled?"start":"stop")+" app_1.8.service",20);String state=ssh.text("systemctl is-active app_1.8.service || :",10).trim();FilesEx.require(state.equals(enabled?"active":"inactive"),"AVAS 服务状态未符合预期："+state);}progress.accept(enabled?"AVAS 服务已启动":"AVAS 已临时停止。仅限驻车测试，离开测试前请恢复；此设置不会开机重放。");}
-    void muteCruiseForTest(String password)throws Exception{
-        try(SshAccess ssh=new SshAccess(context)){ssh.connect(password);establish(ssh);int applied=0;try{for(int i=0;i<CRUISE.length;i++){String target=CHIMES+CRUISE[i],base=ROOT+"/factory-cruise-"+i+".wav";factory(ssh,target,base);byte[] original=ssh.command("cat "+q(base),null,12);String stage=staged(ssh);ssh.upload(stage+"/silent.wav",WaveAudio.silence(original));activate(ssh,target,stage+"/silent.wav","cluster-cmw-audioplay.service","cruise-"+i);applied++;}}catch(Exception failure){for(int i=0;i<applied;i++)try{restoreOne(ssh,CHIMES+CRUISE[i],"cluster-cmw-audioplay.service","cruise-"+i);}catch(Exception rollback){failure.addSuppressed(rollback);}throw failure;}}progress.accept("两项通用功能提示音已临时静音；除巡航外其他功能也可能使用它们。仅限驻车测试，不会保存为开机设置。");
+    private String overlayRoot(Map<String, String> mounts, String path) {
+        String result = "", longest = "";
+        for (Map.Entry<String, String> e : mounts.entrySet()) if ((path.equals(e.getKey()) || path.startsWith(e.getKey() + "/")) && e.getKey().length() > longest.length()) {result = e.getValue(); longest = e.getKey();}
+        return result;
     }
-    void reapplySaved(String password)throws Exception{reapplySaved(false,password);}
-    void reapplySaved(boolean automatic)throws Exception{reapplySaved(automatic,"");}
-    private void reapplySaved(boolean automatic,String password)throws Exception{this.automatic=automatic;SharedPreferences p=context.getSharedPreferences("settings",0);if(p.getBoolean("avasApplied",false)){if(automatic)ParkedProbe.requireParked(context);String path=p.getString("avasFile","");applyAvas(password,path.isEmpty()?null:new File(path),parseOptional(p.getString("forward","")),parseOptional(p.getString("reverse","")),p.getInt("avasGain",100));}if(p.getBoolean("lockApplied",false)){if(automatic)ParkedProbe.requireParked(context);applyLock(password,new File(p.getString("lockFile","")),p.getInt("lockGain",100));}}
-    static String join(int[] values){if(values==null)return "";StringJoiner j=new StringJoiner(",");for(int v:values)j.add(Integer.toString(v));return j.toString();}
-    static int[] parseOptional(String text){if(text.trim().isEmpty())return null;return Arrays.stream(text.trim().split("[,，\\s]+" )).mapToInt(Integer::parseInt).toArray();}
+    private String originalRemote(SoundCatalog.Spec spec) throws Exception {return ROOT + "/originals/" + spec.tag() + ".wav";}
+    private String legacyOriginal(String path) {
+        if (path.startsWith("/usr/avas/sound_type_1/")) return ROOT + "/factory-avas/" + path.substring(path.lastIndexOf('/') + 1);
+        if (path.endsWith("/V3_Vehicle_Locked_Single.wav")) return ROOT + "/factory-lock.wav";
+        if (path.endsWith("/V3_Function_Enabled_Successful_Single.wav")) return ROOT + "/factory-cruise-0.wav";
+        if (path.endsWith("/V3_Function_Exited_Single.wav")) return ROOT + "/factory-cruise-1.wav";
+        return "";
+    }
+    List<SoundStore.Entry> refresh(String password) throws Exception {
+        if (measured != null) measured.stage("连接 CP 并检查声音目录", 0);
+        try (SshAccess ssh = new SshAccess(context)) {ssh.connect(password); return refresh(ssh);}
+    }
+    private List<SoundStore.Entry> refresh(SshAccess ssh) throws Exception {
+        ssh.text("if [ -d " + q(ROOT + "/operation.lock") + " ]; then echo 'CP 音效任务仍在执行或锁尚未恢复，请先核对上次任务记录' >&2; exit 60; fi", 10);
+        StringBuilder command = new StringBuilder();
+        for (String root : SoundCatalog.ROOTS) command.append("if [ -d ").append(q(root)).append(" ]; then find ").append(q(root)).append(" -maxdepth 1 -type f -iname '*.wav'; fi\n");
+        String found = ssh.text(command.toString(), 15); Map<String, String> mounts = mounts(ssh);
+        List<String> paths = new ArrayList<>();
+        for (String path : found.split("\n")) if (SoundCatalog.allowedPath(path) && !paths.contains(path)) paths.add(path);
+        FilesEx.require(!paths.isEmpty() && paths.size() <= 128, "未发现支持的 CP 音频资源或数量异常");
+        Collections.sort(paths); List<SoundStore.Entry> entries = new ArrayList<>(); int count = 0;
+        Set<String> originals = new LinkedHashSet<>();
+        for (String path : paths) if (owned(overlayRoot(mounts, path))) {
+            originals.add(originalRemote(catalog.spec(path))); String legacy = legacyOriginal(path); if (!legacy.isEmpty()) originals.add(legacy);
+        }
+        if (measured != null) measured.stage("核对 CP 声音摘要", 0);
+        // Dropbear limits exec command length; stream the read-only batch over stdin.
+        byte[] manifest = ssh.command("/bin/sh -s", SoundSync.script(paths, originals).getBytes(StandardCharsets.UTF_8), 20);
+        Map<String, String> hashes = SoundSync.parse(new String(manifest, StandardCharsets.UTF_8), paths, originals);
+        lastDownloaded = 0;
+        SoundSync.Reader download = path -> {progress.accept("读取变化的声音 · " + path.substring(path.lastIndexOf('/') + 1)); lastDownloaded++; return read(ssh, path);};
+        if (measured != null) measured.stage("核对声音与本机缓存", paths.size());
+        for (String path : paths) {
+            progress.accept("核对实际提示音 " + (++count) + "/" + paths.size() + " · " + catalog.spec(path).name);
+            String mounted = overlayRoot(mounts, path), overlay = mounted.isEmpty() ? "NONE" : owned(mounted) ? "OWN" : "FOREIGN";
+            String currentSha = SoundSync.cache(store, path, hashes.get(path), download), original = "";
+            if (overlay.equals("NONE")) original = currentSha;
+            else if (overlay.equals("OWN")) {
+                String base = originalRemote(catalog.spec(path)), legacy = legacyOriginal(path);
+                String source = hashes.containsKey(base) ? base : hashes.containsKey(legacy) ? legacy : "";
+                if (!source.isEmpty()) original = SoundSync.cache(store, source, hashes.get(source), download);
+                if (mounts.containsKey("/usr/avas/sound_type_1")) overlay = "LEGACY";
+            }
+            entries.add(new SoundStore.Entry(path, original, currentSha, overlay));
+            if (measured != null) measured.advance(count);
+        }
+        if (measured != null) measured.stage("保存声音目录", 0);
+        store.snapshot(identity(context), entries);
+        progress.accept("已核对 " + entries.size() + " 个实际声音，下载 " + lastDownloaded + " 个变化文件。试听通过 Android 媒体音频输出。");
+        return entries;
+    }
+    private byte[] read(SshAccess ssh, String path) throws Exception {
+        byte[] data = ssh.command("test -f " + q(path) + " && test \"$(stat -c %s " + q(path) + ")\" -le " + SoundWave.MAX_BYTES + " && cat " + q(path), null, 20);
+        new SoundWave(data); return data;
+    }
+    private void establish(SshAccess ssh) throws Exception {
+        ssh.text("set -e; test \"$(id -u)\" = 0; test -d /run; mkdir -p " + q(ROOT + "/originals") + "; chmod 700 " + q(ROOT), 10);
+    }
+    void apply(String password, boolean automatic) throws Exception {apply(password, automatic, null);}
+    void apply(String password, boolean automatic, Set<String> scope) throws Exception {
+        Map<String, SoundStore.Rule> rules = store.rules();
+        if (automatic) {
+            FilesEx.require(SshAccess.trusted(context) && store.identity().equals(identity(context)), "自动覆盖的 CP 身份与声音目录不一致，请重新读取");
+            ParkedProbe.requireParked(context);
+        }
+        try (SshAccess ssh = new SshAccess(context)) {
+            ssh.connect(password); List<SoundStore.Entry> entries = refresh(ssh);
+            Map<String, SoundStore.Entry> byPath = new HashMap<>(); for (SoundStore.Entry e : entries) byPath.put(e.path, e);
+            // Validate the entire desired configuration before any service or mount is changed.
+            for (Map.Entry<String, SoundStore.Rule> r : rules.entrySet()) {
+                if (scope != null && !scope.contains(r.getKey())) continue;
+                SoundStore.Entry entry = byPath.get(r.getKey());
+                FilesEx.require(entry != null && entry.original.equals(r.getValue().original), "预设原声与当前 CP 不匹配：" + catalog.spec(r.getKey()).name + "，请重新配置此声音");
+            }
+            for (SoundStore.Entry e : entries) FilesEx.require(!e.overlay.equals("LEGACY"), "检测到旧版 AVAS 目录覆盖，请先在连接页恢复旧版覆盖，再重新读取");
+            List<AudioPlan.Change> changes = new ArrayList<>(); Set<String> services = new LinkedHashSet<>();
+            String stage = ROOT + "/stage-" + UUID.randomUUID(); Map<String, byte[]> uploads = new LinkedHashMap<>();
+            Map<String, String> expected = new HashMap<>();
+            for (SoundStore.Entry e : entries) {
+                if (scope != null && !scope.contains(e.path)) continue;
+                SoundCatalog.Spec spec = catalog.spec(e.path); SoundStore.Rule rule = rules.get(e.path);
+                if (rule == null && !e.overlay.equals("OWN")) continue;
+                FilesEx.require(spec.writable() && !e.original.isEmpty() && !e.overlay.equals("FOREIGN"), "无法安全管理此覆盖：" + spec.name);
+                String desired = rule == null ? e.original : store.render(rule); expected.put(e.path, desired);
+                if (rule != null && e.current.equals(desired) && e.overlay.equals("OWN")) continue;
+                String replacement = rule == null ? "" : stage + "/" + desired + ".wav";
+                if (rule != null) uploads.put(desired, store.bytes(desired));
+                changes.add(new AudioPlan.Change(e.path, replacement, e.current)); services.addAll(spec.services);
+            }
+            if (changes.isEmpty()) {progress.accept("当前声音已符合配置，无需重复覆盖。"); return;}
+            establish(ssh);
+            long uploadBytes = 0; for (byte[] data : uploads.values()) uploadBytes += data.length;
+            ssh.text("set -e; test \"$(df -k /run | tail -n 1 | awk '{print $4}')\" -gt " + (uploadBytes / 1024 + 32768) + "; mkdir " + q(stage), 10);
+            // Save only pristine resources. Existing originals are checked rather than silently replaced.
+            for (AudioPlan.Change c : changes) {
+                SoundStore.Entry e = byPath.get(c.target); String original = originalRemote(catalog.spec(e.path));
+                String existing = ssh.text("if [ -f " + q(original) + " ]; then sha256sum " + q(original) + " | cut -d ' ' -f 1; fi", 10).trim();
+                if (existing.isEmpty()) ssh.upload(original, store.bytes(e.original));
+                else FilesEx.require(existing.equals(e.original), "CP 原声备份不匹配，请先恢复并重新读取");
+            }
+            for (Map.Entry<String, byte[]> upload : uploads.entrySet()) {
+                String path = stage + "/" + upload.getKey() + ".wav"; ssh.upload(path, upload.getValue());
+                ssh.text("chmod 0444 " + q(path), 10);
+            }
+            if (automatic) ParkedProbe.requireParked(context);
+            progress.accept("临时切换 " + changes.size() + " 个声音，检查播放服务及覆盖摘要…");
+            run(ssh, stage, AudioPlan.batch(changes, services, stage));
+            if (measured != null) measured.stage("校验覆盖结果", 0);
+            SoundSync.verify(expected, refresh(ssh));
+            progress.accept("配置已应用，资源摘要和播放服务检查通过。实际车外/仪表声音仍需现场确认。");
+        }
+    }
+    private void run(SshAccess ssh, String job, String script) throws Exception {
+        ssh.upload(job + "/operation.sh", script.getBytes(StandardCharsets.UTF_8));
+        ssh.text("command -v nohup >/dev/null; nohup /bin/sh " + q(job + "/operation.sh") + " > " + q(job + "/operation.log") + " 2>&1 < /dev/null &", 10);
+        long deadline = System.nanoTime() + 120_000_000_000L;
+        while (System.nanoTime() < deadline) {
+            String result = ssh.text("if [ -f " + q(job + "/result") + " ]; then cat " + q(job + "/result") + "; fi", 10).trim();
+            if (!result.isEmpty()) {FilesEx.require(result.equals("PASS"), "音效切换结果：" + result + "；任务记录：" + job); return;}
+            Thread.sleep(500);
+        }
+        throw new IOException("CP 任务结果尚未确认，不会自动重试。请检查：" + job);
+    }
+    void restoreLegacy(String password) throws Exception {
+        try (SshAccess ssh = new SshAccess(context)) {
+            ssh.connect(password); establish(ssh);
+            String[] targets = {"/usr/avas/sound_type_1", SoundCatalog.CHIMES + "V3_Vehicle_Locked_Single.wav",
+                SoundCatalog.CHIMES + "V3_Function_Enabled_Successful_Single.wav", SoundCatalog.CHIMES + "V3_Function_Exited_Single.wav"};
+            String[] tags = {"avas", "lock", "cruise-0", "cruise-1"};
+            Map<String, String> mounts = mounts(ssh);
+            for (int i = 0; i < targets.length; i++) if (mounts.containsKey(targets[i]) && owned(mounts.get(targets[i]))) {
+                String stage = ROOT + "/stage-" + UUID.randomUUID(); ssh.text("mkdir " + q(stage), 10);
+                String service = i == 0 ? "app_1.8.service" : i == 1 ? "outdoor-audioplay.service" : "cluster-cmw-audioplay.service";
+                run(ssh, stage, AudioPlan.build(targets[i], "", service, tags[i], stage));
+            }
+        }
+        context.getSharedPreferences("settings", 0).edit().putBoolean("reapply", false).apply(); refresh(password);
+    }
 }

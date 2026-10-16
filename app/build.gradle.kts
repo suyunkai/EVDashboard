@@ -6,8 +6,8 @@ android {
         applicationId = "com.kooo.evdashboard"
         minSdk = 30
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 5
+        versionName = "0.2.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += "arm64-v8a" }
     }
@@ -34,6 +34,7 @@ android {
     }
     packaging { jniLibs { useLegacyPackaging = true; keepDebugSymbols += "**/*.so" } }
     testOptions { unitTests.isReturnDefaultValues = true }
+    testBuildType = providers.gradleProperty("instrumentBuildType").getOrElse("debug")
 }
 dependencies {
     implementation("com.github.mwiede:jsch:0.2.20")

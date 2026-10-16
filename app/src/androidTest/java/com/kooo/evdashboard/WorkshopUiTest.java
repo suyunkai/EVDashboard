@@ -27,7 +27,8 @@ public class WorkshopUiTest {
         if(root instanceof ViewGroup group)for(int i=0;i<group.getChildCount();i++){TextView found=find(group.getChildAt(i),label);if(found!=null)return found;}
         return null;
     }
-    private TextView visible(String label){TextView v=find(activity.getWindow().getDecorView(),label);assertNotNull(label,v);return v;}
+    private TextView visible(String label){TextView v=label.equals("仪表工坊")?findWorkshopTab(activity.getWindow().getDecorView()):find(activity.getWindow().getDecorView(),label);assertNotNull(label,v);return v;}
+    private TextView findWorkshopTab(View view){if(view instanceof Button b&&b.getText().toString().equals("仪表工坊"))return b;if(view instanceof ViewGroup g)for(int i=0;i<g.getChildCount();i++){TextView v=findWorkshopTab(g.getChildAt(i));if(v!=null)return v;}return null;}
     private Dialog pickerDialog() throws Exception {
         java.lang.reflect.Field pickerField=MainActivity.class.getDeclaredField("filePicker");pickerField.setAccessible(true);Object picker=pickerField.get(activity);
         java.lang.reflect.Field active=picker.getClass().getDeclaredField("active");active.setAccessible(true);Object uiDialog=active.get(picker);
@@ -36,7 +37,7 @@ public class WorkshopUiTest {
     private void clickRow(TextView text){View current=text;while(current!=null&&!current.isClickable())current=current.getParent() instanceof View?(View)current.getParent():null;assertNotNull(current);assertTrue(current.performClick());}
     @Test public void workshopFirstAndNavigationExplainsNextStep(){
         instrumentation.runOnMainSync(()->{
-            TextView first=visible("仪表盘工坊"),second=visible("AVAS 与提示音");
+            TextView first=visible("仪表工坊"),second=visible("仪表提示音");
             int[] a=new int[2],b=new int[2];first.getLocationOnScreen(a);second.getLocationOnScreen(b);assertTrue(a[0]<b[0]);
             visible("识别并导出完整备份");
             clickRow(visible("2 · 选择与修改"));visible("从本机 / U 盘导入镜像");visible("生成新的修改镜像");
@@ -63,13 +64,15 @@ public class WorkshopUiTest {
         trusted.setAccessible(true);
         SharedPreferences preferences=activity.getSharedPreferences("settings",0);
         String host=preferences.getString("cpHost",null),key=preferences.getString("sshKnown",null);
+        boolean changed=preferences.getBoolean("sshKeyChanged",false);
         try{
-            preferences.edit().putString("cpHost","192.168.10.20").putString("sshKnown","198.18.44.2 ssh-rsa fixture").commit();
+            preferences.edit().putBoolean("sshKeyChanged",false).putString("cpHost","192.168.10.20").putString("sshKnown","198.18.44.2 ssh-rsa fixture").commit();
             assertEquals(false,trusted.invoke(null,activity));
             preferences.edit().putString("sshKnown","192.168.10.20 ssh-rsa fixture").commit();assertEquals(true,trusted.invoke(null,activity));
+            preferences.edit().putBoolean("sshKeyChanged",true).commit();assertEquals(false,trusted.invoke(null,activity));
         }finally{
             SharedPreferences.Editor edit=preferences.edit();if(host==null)edit.remove("cpHost");else edit.putString("cpHost",host);
-            if(key==null)edit.remove("sshKnown");else edit.putString("sshKnown",key);edit.commit();
+            if(key==null)edit.remove("sshKnown");else edit.putString("sshKnown",key);edit.putBoolean("sshKeyChanged",changed).commit();
         }
     }
     private void capture(String name) {
@@ -88,13 +91,13 @@ public class WorkshopUiTest {
             instrumentation.runOnMainSync(()->{
                 android.content.res.Configuration config=new android.content.res.Configuration(activity.getResources().getConfiguration());
                 config.uiMode=(config.uiMode&~android.content.res.Configuration.UI_MODE_NIGHT_MASK)|mode;
-                activity.onConfigurationChanged(config);visible("仪表盘工坊").performClick();clickRow(visible("1 · 识别与备份"));
+                activity.onConfigurationChanged(config);visible("仪表工坊").performClick();clickRow(visible("1 · 识别与备份"));
             });
             String theme=mode==android.content.res.Configuration.UI_MODE_NIGHT_YES?"night":"day";
             capture(theme+"-backup");
             instrumentation.runOnMainSync(()->clickRow(visible("2 · 选择与修改")));capture(theme+"-library");
             instrumentation.runOnMainSync(()->clickRow(visible("3 · 校验与写入")));capture(theme+"-write");
-            instrumentation.runOnMainSync(()->visible("AVAS 与提示音").performClick());capture(theme+"-connection");
+            instrumentation.runOnMainSync(()->visible("仪表提示音").performClick());capture(theme+"-connection");
         }
     }
     @Test public void builtInPickerDoesNotLaunchExternalFileManager() throws Exception {

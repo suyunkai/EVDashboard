@@ -12,7 +12,7 @@ public final class ParkedProbe {
         RootAccess root=new RootAccess(context);root.connect();
         String cp=context.getApplicationInfo().sourceDir+":/system/framework/android.car.jar";
         String result=root.run("CLASSPATH="+FilesEx.quote(cp)+" /system/bin/app_process /system/bin com.kooo.evdashboard.ParkedProbe",18);
-        FilesEx.require(result.equals("PARKED_VERIFIED"),"无法独立确认 P 挡及零车速，未执行开机音效恢复");
+        FilesEx.require(result.equals("PARKED_VERIFIED"),"无法独立确认 P 挡及零车速，未执行自动音效覆盖");
     }
     public static void main(String[] args) {
         Object car=null;Class<?> carClass=null;

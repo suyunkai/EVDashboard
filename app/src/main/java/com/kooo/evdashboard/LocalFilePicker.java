@@ -19,13 +19,18 @@ final class LocalFilePicker implements AutoCloseable {
     private final ExecutorService io=Executors.newSingleThreadExecutor();
     private volatile boolean closed;
     private boolean saving, audio;
+    private boolean zip;
     private String suggested;
     private File protectedLibrary;
     private Consumer<File> selected;
     private UiDialog active;
+    private Runnable cancelled;
 
     LocalFilePicker(Activity activity,Ui ui){this.activity=activity;this.ui=ui;}
+    LocalFilePicker onCancel(Runnable action){cancelled=action;return this;}
+    private void cancel(){if(!closed&&cancelled!=null)cancelled.run();}
     void open(boolean audio,Consumer<File> selected){this.audio=audio;this.selected=selected;volumes();}
+    void openZip(Consumer<File> selected){zip=true;this.selected=selected;volumes();}
     void save(String name,File protectedLibrary,Consumer<File> selected){saving=true;suggested=name;this.protectedLibrary=protectedLibrary;this.selected=selected;volumes();}
     private void volumes(){
         LinkedHashMap<String,File> volumes=new LinkedHashMap<>();
@@ -42,15 +47,15 @@ final class LocalFilePicker implements AutoCloseable {
         active=new UiDialog(activity,ui,saving?"选择另存位置":"选择文件位置")
             .message("内置文件选择器，无需安装文件浏览工具。U 盘须先被车机识别并挂载。")
             .items(volumes.keySet().toArray(new String[0]),i->browse(roots.get(i),roots.get(i)))
-            .negative("取消",null).show();
+            .negative("取消",this::cancel).onCancel(this::cancel).show();
     }
     private void browse(File root,File folder){browse(root,folder,0);}
     private void browse(File root,File folder,int offset){
-        LinearLayout body=ui.vertical();TextView path=ui.text(folder.getAbsolutePath(),24,ui.muted,false);body.addView(path);
+        LinearLayout body=ui.vertical();TextView path=ui.text(I18n.literal(folder.getAbsolutePath()),24,ui.muted,false);body.addView(path);
         LinearLayout list=ui.group();body.addView(list,ui.lp(Ui.MATCH,Ui.WRAP));
         TextView loading=ui.text("正在读取文件列表…",28,ui.muted,false);ui.addRow(list,ui.infoRow(loading));
-        UiDialog dialog=new UiDialog(activity,ui,saving?"选择文件夹":"选择"+(audio?"音频":"镜像"))
-            .view(body).negative("取消",null).neutral("存储设备",this::volumes);
+        UiDialog dialog=new UiDialog(activity,ui,saving?"选择文件夹":"选择"+(zip?"预设 ZIP":audio?"音频":"镜像"))
+            .view(body).negative("取消",this::cancel).onCancel(this::cancel).neutral("存储设备",this::volumes);
         EditText filename;
         if(saving){
             filename=ui.field(body,"文件名（不覆盖同名文件）",suggested,InputType.TYPE_CLASS_TEXT,"文件名","",0);
@@ -62,15 +67,15 @@ final class LocalFilePicker implements AutoCloseable {
         active=dialog;dialog.show();
         io.execute(()->{
             try{
-                List<File> entries=LocalFiles.list(root,folder,audio,saving);
+                List<File> entries=LocalFiles.list(root,folder,zip?"zip":audio?"audio":"image",saving);
                 activity.runOnUiThread(()->{
                     if(closed||activity.isFinishing()||!dialog.isShowing())return;
                     list.removeAllViews();
                     if(!folder.equals(root))ui.addRow(list,ui.actionRow("↑ 上一级",Ui.Tone.ACCENT,v->{dialog.dismiss();browse(root,folder.getParentFile());}));
-                    if(entries.isEmpty())ui.addRow(list,ui.infoRow(ui.text(saving?"可以保存到此文件夹":audio?"此目录没有支持的音频文件":"此目录没有可选镜像（.img / .bin）",26,ui.muted,false)));
+                    if(entries.isEmpty())ui.addRow(list,ui.infoRow(ui.text(saving?"可以保存到此文件夹":zip?"此目录没有预设 ZIP":audio?"此目录没有支持的音频文件":"此目录没有可选镜像（.img / .bin）",26,ui.muted,false)));
                     if(offset>0)ui.addRow(list,ui.actionRow("↑ 上一页文件",Ui.Tone.ACCENT,v->{dialog.dismiss();browse(root,folder,Math.max(0,offset-60));}));
                     for(File file:entries.subList(Math.min(offset,entries.size()),Math.min(offset+60,entries.size()))){
-                        String label=(file.isDirectory()?"文件夹 · ":"文件 · ")+file.getName();
+                        String label=(file.isDirectory()?"文件夹 · ":"文件 · ")+I18n.literal(file.getName());
                         ui.addRow(list,ui.actionRow(label,Ui.Tone.NEUTRAL,v->{
                             dialog.dismiss();
                             if(file.isDirectory())browse(root,file);

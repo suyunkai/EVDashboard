@@ -65,6 +65,37 @@ final class Ui {
 
     int px(float v) {return Math.round(v * unit);}
 
+    /** Full-width rounded meter. Unknown work animates without inventing a percentage. */
+    static final class ProgressTrack extends View {
+        private final Ui ui;
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private int percent = -1;
+        ProgressTrack(Ui ui) {super(ui.context); this.ui = ui; setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);}
+        void percent(int value) {
+            percent = value;
+            setContentDescription(I18n.text(getContext(), value < 0 ? "正在处理" : "当前步骤 " + value + "%"));
+            invalidate();
+        }
+        @Override protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            float w = getWidth(), h = getHeight(), radius = h / 2f;
+            paint.setColor(ui.accentTint); canvas.drawRoundRect(0, 0, w, h, radius, radius, paint);
+            paint.setColor(ui.accent);
+            if (percent >= 0) canvas.drawRoundRect(0, 0, w * Math.max(0, Math.min(100, percent)) / 100f, h, radius, radius, paint);
+            else {
+                float phase = (android.os.SystemClock.uptimeMillis() % 1800) / 1800f;
+                int saved = canvas.save(); canvas.clipRect(0, 0, w, h);
+                float left = (phase * 1.3f - .3f) * w;
+                canvas.drawRoundRect(left, 0, left + w * .3f, h, radius, radius, paint); canvas.restoreToCount(saved);
+                if (isShown()) postInvalidateOnAnimation();
+            }
+        }
+        @Override public void onInitializeAccessibilityNodeInfo(android.view.accessibility.AccessibilityNodeInfo info) {
+            super.onInitializeAccessibilityNodeInfo(info); info.setClassName("android.widget.ProgressBar");
+            if (percent >= 0) info.setRangeInfo(android.view.accessibility.AccessibilityNodeInfo.RangeInfo.obtain(android.view.accessibility.AccessibilityNodeInfo.RangeInfo.RANGE_TYPE_INT, 0, 100, percent));
+        }
+    }
+
     int mix(int a, int b, float t) {
         return Color.argb(255, Math.round(Color.red(a) * (1 - t) + Color.red(b) * t),
                 Math.round(Color.green(a) * (1 - t) + Color.green(b) * t), Math.round(Color.blue(a) * (1 - t) + Color.blue(b) * t));
@@ -101,7 +132,7 @@ final class Ui {
     }
 
     TextView text(CharSequence s, float size, int color, boolean bold) {
-        TextView t = new TextView(context);
+        TextView t = new I18n.Label(context);
         t.setText(s);
         t.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(size));
         t.setTextColor(color);
@@ -143,6 +174,7 @@ final class Ui {
     }
 
     TextView callout(String lead, String body, Tone tone) {
+        lead = I18n.string(context, lead); body = I18n.string(context, body);
         SpannableStringBuilder b = new SpannableStringBuilder();
         if (!lead.isEmpty()) {
             b.append(lead);
@@ -157,7 +189,7 @@ final class Ui {
     }
 
     android.widget.Button button(String label, Look look, View.OnClickListener click) {
-        android.widget.Button b = new android.widget.Button(context);
+        android.widget.Button b = new I18n.Action(context);
         int fill, color, stroke;
         switch (look) {
             case PRIMARY -> {fill = accent; color = onAccent; stroke = 0;}
@@ -275,7 +307,7 @@ final class Ui {
         e.setSingleLine();
         e.setInputType(inputType);
         e.setText(initial);
-        e.setHint(placeholder);
+        e.setHint(I18n.text(context, placeholder));
         e.setHintTextColor(mix(muted, surface, .35f));
         e.setTextColor(ink);
         e.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(32));

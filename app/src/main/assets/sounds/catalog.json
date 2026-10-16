@@ -1,0 +1,538 @@
+[
+  {
+    "path": "/etc/cp_bootanimation/audio.wav",
+    "category": "参考",
+    "group": "CP 启动动画音频",
+    "variant": "默认",
+    "name": "CP 启动动画音频",
+    "services": [],
+    "events": 0
+  },
+  {
+    "path": "/usr/avas/sound_type_1/ClassicSound_30W.wav",
+    "category": "低速",
+    "group": "经典风格",
+    "variant": "30W 主轨",
+    "name": "sound_type_1 · ClassicSound_30W.wav",
+    "services": [
+      "app_1.8.service"
+    ],
+    "events": 0
+  },
+  {
+    "path": "/usr/avas/sound_type_1/ClassicSound_5W.wav",
+    "category": "低速",
+    "group": "经典风格",
+    "variant": "5W 主轨",
+    "name": "sound_type_1 · ClassicSound_5W.wav",
+    "services": [
+      "app_1.8.service"
+    ],
+    "events": 0
+  },
+  {
+    "path": "/usr/avas/sound_type_1/bDM_01_01.wav",
+    "category": "低速",
+    "group": "经典风格",
+    "variant": "30W 辅助轨",
+    "name": "sound_type_1 · bDM_01_01.wav",
+    "services": [
+      "app_1.8.service"
+    ],
+    "events": 0
+  },
+  {
+    "path": "/usr/avas/sound_type_1/bDM_01_02.wav",
+    "category": "低速",
+    "group": "经典风格",
+    "variant": "5W 辅助轨",
+    "name": "sound_type_1 · bDM_01_02.wav",
+    "services": [
+      "app_1.8.service"
+    ],
+    "events": 0
+  },
+  {
+    "path": "/usr/avas/sound_type_2/bDM_01_01.wav",
+    "category": "低速",
+    "group": "银河音符",
+    "variant": "30W 辅助轨",
+    "name": "sound_type_2 · bDM_01_01.wav",
+    "services": [
+      "app_1.8.service"
+    ],
+    "events": 0
+  },
+  {
+    "path": "/usr/avas/sound_type_2/bDM_01_02.wav",
+    "category": "低速",
+    "group": "银河音符",
+    "variant": "5W 辅助轨",
+    "name": "sound_type_2 · bDM_01_02.wav",
+    "services": [
+      "app_1.8.service"
+    ],
+    "events": 0
+  },
+  {
+    "path": "/usr/avas/sound_type_2/yinheyinfu.wav",
+    "category": "低速",
+    "group": "银河音符",
+    "variant": "主轨",
+    "name": "sound_type_2 · yinheyinfu.wav",
+    "services": [
+      "app_1.8.service"
+    ],
+    "events": 0
+  },
+  {
+    "path": "/usr/avas/sound_type_3/bDM_01_01.wav",
+    "category": "低速",
+    "group": "太空风格",
+    "variant": "30W 辅助轨",
+    "name": "sound_type_3 · bDM_01_01.wav",
+    "services": [
+      "app_1.8.service"
+    ],
+    "events": 0
+  },
+  {
+    "path": "/usr/avas/sound_type_3/bDM_01_02.wav",
+    "category": "低速",
+    "group": "太空风格",
+    "variant": "5W 辅助轨",
+    "name": "sound_type_3 · bDM_01_02.wav",
+    "services": [
+      "app_1.8.service"
+    ],
+    "events": 0
+  },
+  {
+    "path": "/usr/avas/sound_type_3/space.wav",
+    "category": "低速",
+    "group": "太空风格",
+    "variant": "主轨",
+    "name": "sound_type_3 · space.wav",
+    "services": [
+      "app_1.8.service"
+    ],
+    "events": 0
+  },
+  {
+    "path": "/usr/bin/cluster_service/wav/E1_Boot_NaturalTech.wav",
+    "category": "参考",
+    "group": "E1 启动音乐素材（实际调用待确认）",
+    "variant": "默认",
+    "name": "E1 启动音乐素材（实际调用待确认）",
+    "services": [],
+    "events": 0
+  },
+  {
+    "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_01_1_Fault_Alert_Chime_Single.wav",
+    "category": "警报",
+    "group": "通用故障提示",
+    "variant": "默认",
+    "name": "通用故障提示",
+    "services": [
+      "cluster-cmw-audioplay.service"
+    ],
+    "events": 58
+  },
+  {
+    "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_02_1_Collision_Alert_Chime_Single.wav",
+    "category": "警报",
+    "group": "碰撞警告",
+    "variant": "默认",
+    "name": "碰撞警告",
+    "services": [
+      "cluster-cmw-audioplay.service"
+    ],
+    "events": 20
+  },
+  {
+    "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_08_1_Seatbelt_Alert_Chime_Fast_Single.wav",
+    "category": "警报",
+    "group": "安全带提醒",
+    "variant": "快速",
+    "name": "安全带提醒·快速",
+    "services": [
+      "cluster-cmw-audioplay.service"
+    ],
+    "events": 1
+  },
+  {
+    "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_08_1_Seatbelt_Alert_Chime_Slow_Single.wav",
+    "category": "警报",
+    "group": "安全带提醒",
+    "variant": "慢速",
+    "name": "安全带提醒·慢速",
+    "services": [
+      "cluster-cmw-audioplay.service"
+    ],
+    "events": 1
+  },
+  {
+    "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_09_1_FRadar_Slow.wav",
+    "category": "雷达",
+    "group": "前雷达",
+    "variant": "慢速",
+    "name": "前雷达·慢速",
+    "services": [
+      "cluster-cmw-audioplay.service"
+    ],
+    "events": 4
+  },
+  {
+    "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_09_2_FRadar_Normal.wav",
+    "category": "雷达",
+    "group": "前雷达",
+    "variant": "常规",
+    "name": "前雷达·常规",
+    "services": [
+      "cluster-cmw-audioplay.service"
+    ],
+    "events": 4
+  },
+  {
+    "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_09_3_FRadar_Continue.wav",
+    "category": "雷达",
+    "group": "前雷达",
+    "variant": "持续",
+    "name": "前雷达·持续",
+    "services": [
+      "cluster-cmw-audioplay.service"
+    ],
+    "events": 3
+  },
+  {
+    "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_09_4_RRadar_Slow.wav",
+    "category": "雷达",
+    "group": "后雷达",
+    "variant": "慢速",
+    "name": "后雷达·慢速",
+    "services": [
+      "cluster-cmw-audioplay.service"
+    ],
+    "events": 4
+  },
+  {
+    "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_09_5_RRadar_Normal.wav",
+    "category": "雷达",
+    "group": "后雷达",
+    "variant": "常规",
+    "name": "后雷达·常规",
+    "services": [
+      "cluster-cmw-audioplay.service"
+    ],
+    "events": 3
+  },
+  {
+    "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_09_6_RRadar_Continue.wav",
+    "category": "雷达",
+    "group": "后雷达",
+    "variant": "持续",
+    "name": "后雷达·持续",
+    "services": [
+      "cluster-cmw-audioplay.service"
+    ],
+    "events": 3
+  },
+  {
+    "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_10_1_DoorOpen_Alert_Chime_Single.wav",
+    "category": "警报",
+    "group": "车门未关提示",
+    "variant": "默认",
+    "name": "车门未关提示",
+    "services": [
+      "cluster-cmw-audioplay.service"
+    ],
+    "events": 6
+  },
+  {
+    "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_11_1_Speed_Over_Alert_Chime_Single.wav",
+    "category": "警报",
+    "group": "超速提示",
+    "variant": "默认",
+    "name": "超速提示",
+    "services": [
+      "cluster-cmw-audioplay.service"
+    ],
+    "events": 7
+  },
+  {
+    "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_12_1_Turn_light_Alert_Chime_Tick_Single.wav",
+    "category": "常用",
+    "group": "转向提示",
+    "variant": "Tick",
+    "name": "转向·Tick 片段",
+    "services": [
+      "cluster-cmw-audioplay.service"
+    ],
+    "events": 3
+  },
+  {
+    "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_12_1_Turn_light_Alert_Chime_Tick_Tock.wav",
+    "category": "参考",
+    "group": "转向合成素材",
+    "variant": "调用待确认",
+    "name": "转向·Tick/Tock 合成素材（调用未确认）",
+    "services": [],
+    "events": 0
+  },
+  {
+    "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_12_1_Turn_light_Alert_Chime_Tock_Single.wav",
+    "category": "常用",
+    "group": "转向提示",
+    "variant": "Tock",
+    "name": "转向·Tock 片段",
+    "services": [
+      "cluster-cmw-audioplay.service"
+    ],
+    "events": 3
+  },
+  {
+    "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_Drive_Gear_Activation_Single.wav",
+    "category": "常用",
+    "group": "D 挡提示",
+    "variant": "默认",
+    "name": "D 挡提示",
+    "services": [
+      "cluster-cmw-audioplay.service"
+    ],
+    "events": 1
+  },
+  {
+    "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_Function_Enabled_Failed_Single.wav",
+    "category": "常用",
+    "group": "通用功能启用失败",
+    "variant": "默认",
+    "name": "通用功能启用失败",
+    "services": [
+      "cluster-cmw-audioplay.service"
+    ],
+    "events": 22
+  },
+  {
+    "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_Function_Enabled_Successful_Single.wav",
+    "category": "常用",
+    "group": "通用功能启用成功",
+    "variant": "默认",
+    "name": "通用功能启用成功",
+    "services": [
+      "cluster-cmw-audioplay.service"
+    ],
+    "events": 3
+  },
+  {
+    "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_Function_Exited_Single.wav",
+    "category": "常用",
+    "group": "通用功能退出",
+    "variant": "默认",
+    "name": "通用功能退出",
+    "services": [
+      "cluster-cmw-audioplay.service"
+    ],
+    "events": 8
+  },
+  {
+    "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_Level_One_Alert_Chime_Single.wav",
+    "category": "警报",
+    "group": "一级通用提醒",
+    "variant": "默认",
+    "name": "一级通用提醒",
+    "services": [
+      "cluster-cmw-audioplay.service"
+    ],
+    "events": 41
+  },
+  {
+    "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_Level_Three_Alert_Chime_Single.wav",
+    "category": "警报",
+    "group": "三级通用提醒",
+    "variant": "默认",
+    "name": "三级通用提醒",
+    "services": [
+      "cluster-cmw-audioplay.service"
+    ],
+    "events": 13
+  },
+  {
+    "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_Level_Two_Alert_Chime_Single.wav",
+    "category": "警报",
+    "group": "二级通用提醒",
+    "variant": "默认",
+    "name": "二级通用提醒",
+    "services": [
+      "cluster-cmw-audioplay.service"
+    ],
+    "events": 32
+  },
+  {
+    "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_Parking_Gear_Activation_Single.wav",
+    "category": "常用",
+    "group": "P 挡提示",
+    "variant": "默认",
+    "name": "P 挡提示",
+    "services": [
+      "cluster-cmw-audioplay.service",
+      "outdoor-audioplay.service"
+    ],
+    "events": 1
+  },
+  {
+    "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_Reverse_Gear_Activation_Single.wav",
+    "category": "常用",
+    "group": "R 挡提示",
+    "variant": "默认",
+    "name": "R 挡提示",
+    "services": [
+      "cluster-cmw-audioplay.service"
+    ],
+    "events": 1
+  },
+  {
+    "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_Traffic_Light_Warning_Single.wav",
+    "category": "常用",
+    "group": "交通灯提醒",
+    "variant": "默认",
+    "name": "交通灯提醒",
+    "services": [
+      "cluster-cmw-audioplay.service"
+    ],
+    "events": 1
+  },
+  {
+    "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_Usagemode_Driving_Welcome.wav",
+    "category": "常用",
+    "group": "驾驶模式欢迎音",
+    "variant": "默认",
+    "name": "驾驶模式欢迎音",
+    "services": [
+      "cluster-cmw-audioplay.service"
+    ],
+    "events": 1
+  },
+  {
+    "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_Vehicle_Charging_Single-13dB.wav",
+    "category": "常用",
+    "group": "充电提示",
+    "variant": "轻音版",
+    "name": "充电提示·轻音版",
+    "services": [
+      "outdoor-audioplay.service"
+    ],
+    "events": 1
+  },
+  {
+    "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_Vehicle_Charging_Single.wav",
+    "category": "常用",
+    "group": "充电提示",
+    "variant": "普通版·调用待确认",
+    "name": "充电提示·普通版（调用未确认）",
+    "services": [],
+    "events": 0
+  },
+  {
+    "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_Vehicle_Locked_Single-13dB.wav",
+    "category": "常用",
+    "group": "锁车提示",
+    "variant": "轻音版",
+    "name": "锁车提示·轻音版",
+    "services": [
+      "outdoor-audioplay.service"
+    ],
+    "events": 1
+  },
+  {
+    "path": "/usr/share/chime-contents/V3_Geely_DNA_DHU/V3_Vehicle_Locked_Single.wav",
+    "category": "常用",
+    "group": "锁车提示",
+    "variant": "普通版",
+    "name": "锁车提示·普通版",
+    "services": [
+      "outdoor-audioplay.service"
+    ],
+    "events": 1
+  },
+  {
+    "path": "/usr/share/sounds/alsa/Front_Center.wav",
+    "category": "诊断",
+    "group": "ALSA 测试 · Front_Center.wav",
+    "variant": "默认",
+    "name": "ALSA 测试 · Front_Center.wav",
+    "services": [],
+    "events": 0
+  },
+  {
+    "path": "/usr/share/sounds/alsa/Front_Left.wav",
+    "category": "诊断",
+    "group": "ALSA 测试 · Front_Left.wav",
+    "variant": "默认",
+    "name": "ALSA 测试 · Front_Left.wav",
+    "services": [],
+    "events": 0
+  },
+  {
+    "path": "/usr/share/sounds/alsa/Front_Right.wav",
+    "category": "诊断",
+    "group": "ALSA 测试 · Front_Right.wav",
+    "variant": "默认",
+    "name": "ALSA 测试 · Front_Right.wav",
+    "services": [],
+    "events": 0
+  },
+  {
+    "path": "/usr/share/sounds/alsa/Noise.wav",
+    "category": "诊断",
+    "group": "ALSA 测试 · Noise.wav",
+    "variant": "默认",
+    "name": "ALSA 测试 · Noise.wav",
+    "services": [],
+    "events": 0
+  },
+  {
+    "path": "/usr/share/sounds/alsa/Rear_Center.wav",
+    "category": "诊断",
+    "group": "ALSA 测试 · Rear_Center.wav",
+    "variant": "默认",
+    "name": "ALSA 测试 · Rear_Center.wav",
+    "services": [],
+    "events": 0
+  },
+  {
+    "path": "/usr/share/sounds/alsa/Rear_Left.wav",
+    "category": "诊断",
+    "group": "ALSA 测试 · Rear_Left.wav",
+    "variant": "默认",
+    "name": "ALSA 测试 · Rear_Left.wav",
+    "services": [],
+    "events": 0
+  },
+  {
+    "path": "/usr/share/sounds/alsa/Rear_Right.wav",
+    "category": "诊断",
+    "group": "ALSA 测试 · Rear_Right.wav",
+    "variant": "默认",
+    "name": "ALSA 测试 · Rear_Right.wav",
+    "services": [],
+    "events": 0
+  },
+  {
+    "path": "/usr/share/sounds/alsa/Side_Left.wav",
+    "category": "诊断",
+    "group": "ALSA 测试 · Side_Left.wav",
+    "variant": "默认",
+    "name": "ALSA 测试 · Side_Left.wav",
+    "services": [],
+    "events": 0
+  },
+  {
+    "path": "/usr/share/sounds/alsa/Side_Right.wav",
+    "category": "诊断",
+    "group": "ALSA 测试 · Side_Right.wav",
+    "variant": "默认",
+    "name": "ALSA 测试 · Side_Right.wav",
+    "services": [],
+    "events": 0
+  }
+]

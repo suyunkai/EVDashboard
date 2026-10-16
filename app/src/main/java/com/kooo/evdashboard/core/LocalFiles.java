@@ -14,13 +14,16 @@ public final class LocalFiles {
         return f;
     }
     public static List<File> list(File root, File folder, boolean audio, boolean directoriesOnly) throws IOException {
+        return list(root, folder, audio ? "audio" : "image", directoriesOnly);
+    }
+    public static List<File> list(File root, File folder, String kind, boolean directoriesOnly) throws IOException {
         File dir = within(root, folder);
         File[] entries = dir.listFiles();
         FilesEx.require(entries != null, "无法读取目录；请检查文件管理权限或 U 盘是否已挂载");
         List<File> result = new ArrayList<>();
         for (File f : entries) {
             if (Files.isSymbolicLink(f.toPath())) continue;
-            if (f.isDirectory() || (!directoriesOnly && f.isFile() && accepted(f.getName(), audio))) result.add(f);
+            if (f.isDirectory() || (!directoriesOnly && f.isFile() && (kind.equals("zip") ? f.getName().toLowerCase(Locale.ROOT).endsWith(".zip") : accepted(f.getName(), kind.equals("audio"))))) result.add(f);
         }
         result.sort(Comparator.comparing((File f) -> !f.isDirectory()).thenComparing(File::getName, String.CASE_INSENSITIVE_ORDER));
         return result;

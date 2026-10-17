@@ -123,18 +123,22 @@ public final class AutoApplyService extends Service {
         handler.postDelayed(tick, recovery.remaining(now));
         checkTask = state.executor.submit(() -> {
             Exception failure = null; boolean needed = false;
+            AudioEngine.Prepared prepared = null;
             PowerManager.WakeLock wake = getSystemService(PowerManager.class).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "EVDashboard:recovery-check");
             try {
                 if (destroyed || !recovery.current(token)) throw new java.io.IOException("恢复检查已取消");
-                wake.acquire(45_000); needed = new AudioEngine(this, ignored -> {}, false).prepareAutomatic();
+                wake.acquire(45_000);
+                AudioEngine engine = new AudioEngine(this, ignored -> {}, false);
+                needed = engine.prepareAutomatic(); prepared = engine.prepared();
             }
             catch (Exception error) {failure = error;}
             finally {if (wake.isHeld()) wake.release();}
             final Exception result = failure; final boolean changes = needed;
-            handler.post(() -> ready(token, result, changes));
+            final AudioEngine.Prepared checked = prepared;
+            handler.post(() -> ready(token, result, changes, checked));
         });
     }
-    private void ready(long token, Exception error, boolean needed) {
+    private void ready(long token, Exception error, boolean needed, AudioEngine.Prepared prepared) {
         checking = false;
         if (destroyed || !enabled(this) || !recovery.current(token)) return;
         handler.removeCallbacks(tick);
@@ -150,7 +154,7 @@ public final class AutoApplyService extends Service {
         try {
             state.submit("自动恢复仪表提示音", () -> {
                 boolean success = false;
-                try {new AudioEngine(this, state::report).apply("", true); success = true;}
+                try {new AudioEngine(this, state::report).apply("", true, null, prepared); success = true;}
                 finally {
                     boolean done = success;
                     handler.post(() -> {if (!destroyed) finish(done ? "声音配置已恢复，继续监听唤醒" : "自动恢复未完成，请查看任务记录；继续只读核对结果");});

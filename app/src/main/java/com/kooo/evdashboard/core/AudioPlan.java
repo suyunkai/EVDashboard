@@ -48,7 +48,11 @@ public final class AudioPlan {
             s.append("mounted=$(mounted_path ").append(q(c.target)).append(")\nowned \"$mounted\" || exit 62\n")
                 .append("if [ -n \"$mounted\" ]; then case \"$mounted\" in /instrument-workshop/*) old").append(i).append("=/run$mounted;; *) old").append(i).append("=$mounted;; esac; test -f \"$old").append(i).append("\"; fi\n")
                 .append("test \"$(sha256sum ").append(q(c.target)).append(" | cut -d ' ' -f 1)\" = ").append(q(c.expectedCurrent)).append(" || exit 64\n");
-            if (!c.replacement.isEmpty()) s.append("test -f ").append(q(c.replacement)).append("\n");
+            if (!c.replacement.isEmpty()) {
+                String hash = c.replacement.substring(c.replacement.lastIndexOf('/') + 1, c.replacement.length() - 4);
+                s.append("test -f ").append(q(c.replacement)).append("\ntest \"$(sha256sum ").append(q(c.replacement))
+                    .append(" | cut -d ' ' -f 1)\" = ").append(q(hash)).append(" || exit 64\n");
+            }
         }
         si = 0; for (String service : services) s.append("if systemctl is-active --quiet ").append(q(service)).append("; then active").append(si++).append("=1; fi\n");
         s.append("armed=1\n");

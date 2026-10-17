@@ -17,6 +17,20 @@ final class AudioEngine {
     private final SoundCatalog catalog;
     private final SoundStore store;
     private int lastDownloaded;
+    private Prepared prepared;
+    static final class Prepared {
+        final List<SoundStore.Entry> entries;
+        final String rulesHash, identity, boot;
+        final long at = System.nanoTime();
+        Prepared(List<SoundStore.Entry> entries, String rulesHash, String identity, String boot) {
+            this.entries = new ArrayList<>(entries); this.rulesHash = rulesHash; this.identity = identity; this.boot = boot;
+        }
+    }
+    Prepared prepared() {return prepared;}
+    private String rulesHash() throws Exception {
+        File file = new File(context.getFilesDir(), "instrument-sounds/rules.json");
+        return file.isFile() ? FilesEx.digest(file) : "";
+    }
     AudioEngine(Context context, Consumer<String> progress) throws Exception {this(context, progress, true);}
     AudioEngine(Context context, Consumer<String> progress, boolean taskProgress) throws Exception {
         this.context = context; this.progress = progress; catalog = catalog(context); store = store(context, catalog);
@@ -108,7 +122,8 @@ final class AudioEngine {
         new SoundWave(data); return data;
     }
     private void establish(SshAccess ssh) throws Exception {
-        ssh.text("set -e; test \"$(id -u)\" = 0; test -d /run; mkdir -p " + q(ROOT + "/originals") + "; chmod 700 " + q(ROOT), 10);
+        ssh.text("set -e; test \"$(id -u)\" = 0; test -d /run; test ! -L " + q(ROOT) + "; test ! -L " + q(ROOT + "/originals")
+            + "; mkdir -p " + q(ROOT + "/originals") + "; chmod 700 " + q(ROOT), 10);
     }
     private void requireAutomaticAllowed() throws Exception {
         android.os.PowerManager power = context.getSystemService(android.os.PowerManager.class);
@@ -121,10 +136,13 @@ final class AudioEngine {
     }
     /** Retryable readiness work is strictly read-only on CP. */
     boolean prepareAutomatic() throws Exception {
+        prepared = null;
         requireAutomaticAllowed();
         try (SshAccess ssh = new SshAccess(context)) {
             ssh.connect("");
-            ssh.text("test ! -d " + q(ROOT + "/operation.lock") + " && test -d /run && test -d " + q(SoundCatalog.CHIMES), 10);
+            String boot = ssh.text("test ! -d " + q(ROOT + "/operation.lock") + " && test -d /run && test -d " + q(SoundCatalog.CHIMES)
+                + " && cat /proc/sys/kernel/random/boot_id", 10).trim();
+            String rulesHash = rulesHash();
             Map<String, SoundStore.Rule> rules = store.rules();
             List<SoundStore.Entry> entries = refresh(ssh);
             Set<String> found = new HashSet<>(); boolean needed = false;
@@ -141,6 +159,7 @@ final class AudioEngine {
             FilesEx.require(!needed || !context.getSharedPreferences("settings", 0).getBoolean("startupApplyUncertain", false),
                 "上次覆盖结果待确认，请手动应用配置后再自动恢复");
             if (!needed) clearUncertain();
+            if (needed) prepared = new Prepared(entries, rulesHash, identity(context), boot);
             return needed;
         }
     }
@@ -149,11 +168,23 @@ final class AudioEngine {
     }
     void apply(String password, boolean automatic) throws Exception {apply(password, automatic, null);}
     void apply(String password, boolean automatic, Set<String> scope) throws Exception {
+        apply(password, automatic, scope, null);
+    }
+    void apply(String password, boolean automatic, Set<String> scope, Prepared ready) throws Exception {
         boolean unresolved = context.getSharedPreferences("settings", 0).getBoolean("startupApplyUncertain", false);
         Map<String, SoundStore.Rule> rules = store.rules();
         if (automatic) requireAutomaticAllowed();
         try (SshAccess ssh = new SshAccess(context)) {
-            ssh.connect(password); List<SoundStore.Entry> entries = refresh(ssh);
+            ssh.connect(password);
+            // Reuse only the immediately preceding automatic check. The CP boot, rules,
+            // address and every changed target's digest are still checked before switching.
+            List<SoundStore.Entry> entries = null;
+            if (automatic && ready != null && System.nanoTime() - ready.at < 20_000_000_000L
+                && ready.identity.equals(identity(context)) && ready.rulesHash.equals(rulesHash())) {
+                String boot = ssh.text("test ! -d " + q(ROOT + "/operation.lock") + " && cat /proc/sys/kernel/random/boot_id", 10).trim();
+                if (!boot.isEmpty() && ready.boot.equals(boot)) {entries = ready.entries; progress.accept("复用刚完成的声音核对，准备批量传输。");}
+            }
+            if (entries == null) entries = refresh(ssh);
             Map<String, SoundStore.Entry> byPath = new HashMap<>(); for (SoundStore.Entry e : entries) byPath.put(e.path, e);
             // Validate the entire desired configuration before any service or mount is changed.
             for (Map.Entry<String, SoundStore.Rule> r : rules.entrySet()) {
@@ -163,7 +194,7 @@ final class AudioEngine {
             }
             for (SoundStore.Entry e : entries) FilesEx.require(!e.overlay.equals("LEGACY"), "检测到旧版 AVAS 目录覆盖，请先在连接页恢复旧版覆盖，再重新读取");
             List<AudioPlan.Change> changes = new ArrayList<>(); Set<String> services = new LinkedHashSet<>();
-            String stage = ROOT + "/stage-" + UUID.randomUUID(); Map<String, byte[]> uploads = new LinkedHashMap<>();
+            String stage = ROOT + "/stage-" + UUID.randomUUID(); Map<String, File> uploads = new LinkedHashMap<>();
             Map<String, String> expected = new HashMap<>();
             for (SoundStore.Entry e : entries) {
                 if (scope != null && !scope.contains(e.path)) continue;
@@ -173,24 +204,39 @@ final class AudioEngine {
                 String desired = rule == null ? e.original : store.render(rule); expected.put(e.path, desired);
                 if (rule != null && e.current.equals(desired) && e.overlay.equals("OWN")) continue;
                 String replacement = rule == null ? "" : stage + "/" + desired + ".wav";
-                if (rule != null) uploads.put(desired, store.bytes(desired));
+                if (rule != null) uploads.put(desired, store.asset(desired));
                 changes.add(new AudioPlan.Change(e.path, replacement, e.current)); services.addAll(spec.services);
             }
-            if (changes.isEmpty()) {if (scope == null) clearUncertain(); progress.accept("当前声音已符合配置，无需重复覆盖。"); return;}
+            if (changes.isEmpty()) {SoundSync.verify(expected, entries); if (scope == null) clearUncertain(); cleanup(ssh); progress.accept("当前声音已符合配置，无需重复覆盖。"); return;}
             if (automatic) requireAutomaticAllowed();
             establish(ssh);
-            long uploadBytes = 0; for (byte[] data : uploads.values()) uploadBytes += data.length;
-            ssh.text("set -e; test \"$(df -k /run | tail -n 1 | awk '{print $4}')\" -gt " + (uploadBytes / 1024 + 32768) + "; mkdir " + q(stage), 10);
-            // Save only pristine resources. Existing originals are checked rather than silently replaced.
+            long uploadBytes = 0; for (File file : uploads.values()) uploadBytes += file.length();
+            long backupBytes = 0; for (AudioPlan.Change c : changes) backupBytes += store.asset(byPath.get(c.target).original).length();
+            ssh.text("set -e; test \"$(df -k /run | tail -n 1 | awk '{print $4}')\" -gt " + ((uploadBytes + backupBytes) / 1024 + 32768) + "; mkdir " + q(stage), 10);
+            // One CP-local batch replaces per-file round trips and Android-to-CP original uploads.
+            List<AudioTransfer.Backup> backups = new ArrayList<>();
             for (AudioPlan.Change c : changes) {
                 SoundStore.Entry e = byPath.get(c.target); String original = originalRemote(catalog.spec(e.path));
-                String existing = ssh.text("if [ -f " + q(original) + " ]; then sha256sum " + q(original) + " | cut -d ' ' -f 1; fi", 10).trim();
-                if (existing.isEmpty()) ssh.upload(original, store.bytes(e.original));
-                else FilesEx.require(existing.equals(e.original), "CP 原声备份不匹配，请先恢复并重新读取");
+                String source = e.overlay.equals("NONE") ? e.path : legacyOriginal(e.path);
+                // Owned overlays normally already have this backup. If it is absent,
+                // only a verified legacy original is eligible; never copy the overlay.
+                if (source.isEmpty()) source = original;
+                backups.add(new AudioTransfer.Backup(original, source, e.original));
             }
-            for (Map.Entry<String, byte[]> upload : uploads.entrySet()) {
-                String path = stage + "/" + upload.getKey() + ".wav"; ssh.upload(path, upload.getValue());
-                ssh.text("chmod 0444 " + q(path), 10);
+            if (measured != null) measured.stage("核验 CP 原声备份", 0);
+            progress.accept("批量核验原声备份，缺少的原声直接在 CP 保存。");
+            ssh.command("/bin/sh -s", AudioTransfer.backups(backups, stage).getBytes(StandardCharsets.UTF_8), 30);
+            if (!uploads.isEmpty()) {
+                if (measured != null) measured.stage("批量传输替换音频", 0);
+                progress.accept("批量传输 " + uploads.size() + " 个不同音频 · " + String.format(Locale.ROOT, "%.1f MiB", uploadBytes / 1048576.0));
+                File archive = File.createTempFile("sound-transfer-", ".tar.gz", context.getCacheDir());
+                try {
+                    try (OutputStream output = new java.util.zip.GZIPOutputStream(new BufferedOutputStream(new FileOutputStream(archive)))) {AudioTransfer.write(uploads, output);}
+                    progress.accept("压缩传输大小 · " + String.format(Locale.ROOT, "%.1f MiB", archive.length() / 1048576.0));
+                    try (InputStream input = new BufferedInputStream(new FileInputStream(archive))) {
+                        AudioTransfer.verify(new String(ssh.stream(AudioTransfer.receive(stage), input, 90), StandardCharsets.UTF_8), stage, uploads.keySet());
+                    }
+                } finally {Files.deleteIfExists(archive.toPath());}
             }
             if (automatic) requireAutomaticAllowed();
             progress.accept("临时切换 " + changes.size() + " 个声音，检查播放服务及覆盖摘要…");
@@ -199,8 +245,19 @@ final class AudioEngine {
             if (measured != null) measured.stage("校验覆盖结果", 0);
             SoundSync.verify(expected, refresh(ssh));
             if (scope == null || !unresolved) clearUncertain();
+            cleanup(ssh);
             progress.accept("配置已应用，资源摘要和播放服务检查通过。实际车外/仪表声音仍需现场确认。");
         }
+    }
+    private void cleanup(SshAccess ssh) {
+        try {
+            if (context.getSharedPreferences("settings", 0).getBoolean("startupApplyUncertain", false)) return;
+            String result = new String(ssh.command("/bin/sh -s", AudioCleanup.script().getBytes(StandardCharsets.UTF_8), 20), StandardCharsets.UTF_8).trim();
+            if (result.startsWith("RECLAIMED=")) {
+                long bytes = Long.parseLong(result.substring(10));
+                if (bytes > 0) progress.accept("已回收未使用的临时音频 · " + String.format(Locale.ROOT, "%.1f MiB", bytes / 1048576.0));
+            }
+        } catch (Exception error) {progress.accept("声音已核验；旧临时音频稍后再清理：" + error.getMessage());}
     }
     private void run(SshAccess ssh, String job, String script) throws Exception {
         ssh.upload(job + "/operation.sh", script.getBytes(StandardCharsets.UTF_8));

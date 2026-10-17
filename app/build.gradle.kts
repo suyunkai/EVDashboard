@@ -1,4 +1,36 @@
+import java.util.zip.GZIPOutputStream
+import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.tasks.InputDirectory
+import org.gradle.api.tasks.OutputDirectory
+import org.gradle.api.tasks.TaskAction
+
 plugins { id("com.android.application") }
+
+// AAPT stores .wav assets without compression. Package lossless gzip copies,
+// leaving the editable source assets and their original SHA-256 names intact.
+// Use .packed: the Android asset merger transparently inflates files ending in .gz.
+abstract class PackPresetAssets : DefaultTask() {
+    @get:InputDirectory abstract val sources: DirectoryProperty
+    @get:OutputDirectory abstract val destination: DirectoryProperty
+    @TaskAction fun pack() {
+        val sourceRoot = sources.get().asFile
+        val destination = destination.get().asFile
+        destination.deleteRecursively()
+        sourceRoot.walkTopDown().filter { it.isFile }.forEach { source ->
+            val relative = source.relativeTo(sourceRoot).invariantSeparatorsPath
+            val compress = relative.matches(Regex("presets/[^/]+/audio/[a-f0-9]{64}\\.wav"))
+            val target = destination.resolve(relative + if (compress) ".packed" else "")
+            target.parentFile.mkdirs()
+            if (compress) source.inputStream().use { input ->
+                GZIPOutputStream(target.outputStream()).use { output -> input.copyTo(output) }
+            } else source.copyTo(target, overwrite = true)
+        }
+    }
+}
+val packPresetAssets = tasks.register<PackPresetAssets>("packPresetAssets") {
+    sources.set(layout.projectDirectory.dir("src/main/assets"))
+    destination.set(layout.buildDirectory.dir("generated/packed-assets"))
+}
 android {
     namespace = "com.kooo.evdashboard"
     compileSdk = 36
@@ -6,8 +38,8 @@ android {
         applicationId = "com.kooo.evdashboard"
         minSdk = 30
         targetSdk = 34
-        versionCode = 10
-        versionName = "0.2.8"
+        versionCode = 11
+        versionName = "0.2.9"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += "arm64-v8a" }
     }
@@ -35,6 +67,10 @@ android {
     packaging { jniLibs { useLegacyPackaging = true; keepDebugSymbols += "**/*.so" } }
     testOptions { unitTests.isReturnDefaultValues = true }
     testBuildType = providers.gradleProperty("instrumentBuildType").getOrElse("debug")
+    sourceSets.getByName("main").assets.directories.clear()
+}
+androidComponents.onVariants { variant ->
+    variant.sources.assets?.addGeneratedSourceDirectory(packPresetAssets, PackPresetAssets::destination)
 }
 dependencies {
     implementation("com.github.mwiede:jsch:0.2.20")

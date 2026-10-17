@@ -48,16 +48,23 @@ final class SoundPanel implements AutoCloseable {
         soundScroll.addView(grid); soundScroll.setFillViewport(false); soundScroll.setScrollbarFadingEnabled(false);
         directory.addView(soundScroll, ui.lp(Ui.MATCH, 0, 1));
         presetsView = shell("预设音效");
-        presetsView.addView(ui.text("内置预设", 32, ui.ink, true), ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(6)));
-        presetsView.addView(ui.text("选择一套内置音效，勾选需要的声音并逐个试听，点击“应用”写入“实际音效”，再按需调整每个声音的音量。", 24, ui.muted, false), ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(14)));
-        builtinList = ui.vertical(); presetsView.addView(builtinList, ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(10)));
-        View divider = new View(activity); divider.setBackgroundColor(ui.line); presetsView.addView(divider, ui.lp(Ui.MATCH, ui.px(2), 0, 0, 0, ui.px(24)));
-        presetsView.addView(ui.text("我的预设", 32, ui.ink, true), ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(6)));
-        presetCount = ui.text("", 26, ui.muted, false); presetsView.addView(presetCount);
+        ScrollView page = new ScrollView(activity); page.setTag("preset-scroll"); page.setScrollbarFadingEnabled(false);
+        LinearLayout body = ui.vertical(); page.addView(body); presetsView.addView(page, ui.lp(Ui.MATCH, 0, 1));
+        LinearLayout builtinHead = ui.horizontal(); builtinHead.setGravity(Gravity.BOTTOM);
+        builtinHead.addView(ui.text("内置预设", 32, ui.ink, true), ui.lp(Ui.WRAP, Ui.WRAP, 0, 0, ui.px(20), 0));
+        TextView builtinHint = ui.text("选择一套内置音效，勾选需要的声音并逐个试听，点击“应用”写入“实际音效”，再按需调整每个声音的音量。", 22, ui.muted, false);
+        builtinHint.setSingleLine(); builtinHint.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        builtinHead.addView(builtinHint, ui.lp(0, Ui.WRAP, 1)); body.addView(builtinHead, ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(12)));
+        builtinList = ui.vertical(); body.addView(builtinList, ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(6)));
+        View divider = new View(activity); divider.setBackgroundColor(ui.line); body.addView(divider, ui.lp(Ui.MATCH, ui.px(2), 0, ui.px(6), 0, ui.px(18)));
+        LinearLayout mineHead = ui.horizontal(); mineHead.setGravity(Gravity.BOTTOM);
+        mineHead.addView(ui.text("我的预设", 32, ui.ink, true), ui.lp(Ui.WRAP, Ui.WRAP, 0, 0, ui.px(20), 0));
+        presetCount = ui.text("", 24, ui.muted, false); presetCount.setSingleLine(); mineHead.addView(presetCount, ui.lp(0, Ui.WRAP, 1));
+        body.addView(mineHead, ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(12)));
         LinearLayout actions = buttonRow(smallButton("保存预设", Ui.Look.PRIMARY, v -> namePreset()),
             smallButton("导入 ZIP", Ui.Look.TINT, v -> importZip()), smallButton("导出 ZIP", Ui.Look.TINT, v -> exportZip()));
-        presetsView.addView(actions, ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(16), 0, ui.px(20)));
-        presetList = ui.vertical(); ScrollView saved = new ScrollView(activity); saved.addView(presetList); presetsView.addView(saved, ui.lp(Ui.MATCH, 0, 1));
+        body.addView(actions, ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(16)));
+        presetList = ui.vertical(); body.addView(presetList, ui.lp(Ui.MATCH, Ui.WRAP));
         reload();
     }
     private final LinearLayout presetsView;
@@ -373,27 +380,29 @@ final class SoundPanel implements AutoCloseable {
     }
     private void presetCards() throws Exception {
         List<SoundStore.Preset> presets = store.presets(); presetCount.setText("已保存 " + presets.size() + " / 5 · 当前配置 " + rules.size() + " 个素材"); presetList.removeAllViews();
-        if (presets.isEmpty()) presetList.addView(ui.text("保存常用配置后可快速切换；ZIP 会包含规则、原声与替换源。", 28, ui.muted, false));
-        int columns = ui.compact ? 1 : 2;
+        if (presets.isEmpty()) presetList.addView(ui.text("保存常用配置后可快速切换；ZIP 会包含规则、原声与替换源。", 24, ui.muted, false));
+        int columns = ui.compact ? 2 : 3;
         for (int start = 0; start < presets.size(); start += columns) {
-            LinearLayout row = ui.horizontal(); row.setGravity(Gravity.TOP);
+            LinearLayout row = ui.horizontal(); row.setBaselineAligned(false);
             for (int c = 0; c < columns; c++) {
-                LinearLayout.LayoutParams lp = ui.lp(0, ui.px(216), 1); if (c > 0) lp.leftMargin = ui.px(18);
+                LinearLayout.LayoutParams lp = ui.lp(0, Ui.WRAP, 1); if (c > 0) lp.leftMargin = ui.px(14);
                 if (start + c >= presets.size()) {row.addView(new View(activity), lp); continue;}
                 SoundStore.Preset preset = presets.get(start + c);
-                LinearLayout card = ui.vertical(); card.setTag("preset-card");
-                card.setPadding(ui.px(26), ui.px(24), ui.px(26), ui.px(24));
-                card.setBackground(ui.interactive(ui.surface2, 26, ui.line)); card.setClickable(true); card.setFocusable(true);
-                LinearLayout heading = ui.horizontal();
-                heading.addView(ui.icon(R.drawable.ic_ui_audio, ui.accent, 34), ui.lp(ui.px(34), ui.px(34), 0, 0, ui.px(14), 0));
-                heading.addView(ui.text("声音预设", 23, ui.accent, true), ui.lp(0, Ui.WRAP, 1));
-                heading.addView(ui.text("›", 32, ui.muted, false)); card.addView(heading);
-                TextView name = ui.text(I18n.literal(preset.name), 34, ui.ink, true); name.setMaxLines(2); name.setEllipsize(android.text.TextUtils.TruncateAt.END);
-                card.addView(name, ui.lp(Ui.MATCH, 0, 1));
-                card.addView(ui.text("点击载入、应用或删除", 23, ui.muted, false));
+                LinearLayout card = ui.horizontal(); card.setTag("preset-card"); card.setGravity(Gravity.CENTER_VERTICAL);
+                card.setPadding(ui.px(20), ui.px(16), ui.px(20), ui.px(16)); card.setMinimumHeight(ui.px(100));
+                card.setBackground(ui.interactive(ui.surface2, 24, ui.line)); card.setClickable(true); card.setFocusable(true);
+                FrameLayout tile = new FrameLayout(activity); tile.setBackground(ui.rect(ui.accentTint, 14, 0, 0));
+                tile.addView(ui.icon(R.drawable.ic_ui_audio, ui.accent, 30), new FrameLayout.LayoutParams(ui.px(30), ui.px(30), Gravity.CENTER));
+                card.addView(tile, ui.lp(ui.px(56), ui.px(56), 0, 0, ui.px(16), 0));
+                LinearLayout names = ui.vertical();
+                TextView name = ui.text(I18n.literal(preset.name), 30, ui.ink, true); name.setSingleLine(); name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                names.addView(name);
+                TextView hint = ui.text("点击载入、应用或删除", 21, ui.muted, false); hint.setSingleLine(); hint.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                names.addView(hint, ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(2), 0, 0));
+                card.addView(names, ui.lp(0, Ui.WRAP, 1)); card.addView(ui.text("›", 30, ui.muted, false), ui.lp(Ui.WRAP, Ui.WRAP, ui.px(8), 0, 0, 0));
                 card.setOnClickListener(v -> presetActions(preset)); row.addView(card, lp);
             }
-            presetList.addView(row, ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(18)));
+            presetList.addView(row, ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(14)));
         }
     }
     private void builtinCards() {
@@ -404,33 +413,27 @@ final class SoundPanel implements AutoCloseable {
         for (int start = 0; start < presets.size(); start += columns) {
             LinearLayout row = ui.horizontal(); row.setBaselineAligned(false);
             for (int c = 0; c < columns; c++) {
-                LinearLayout.LayoutParams lp = ui.lp(0, Ui.MATCH, 1); if (c > 0) lp.leftMargin = ui.px(18);
+                LinearLayout.LayoutParams lp = ui.lp(0, Ui.WRAP, 1); if (c > 0) lp.leftMargin = ui.px(14);
                 if (start + c >= presets.size()) {row.addView(new View(activity), lp); continue;}
                 SoundPreset preset = presets.get(start + c);
                 LinearLayout card = ui.vertical(); card.setTag("builtin-preset-card");
-                card.setPadding(ui.px(28), ui.px(26), ui.px(28), ui.px(24));
-                card.setBackground(ui.interactive(ui.surface2, 28, ui.mix(ui.line, ui.accent, .35f))); card.setClickable(true); card.setFocusable(true);
+                card.setPadding(ui.px(22), ui.px(18), ui.px(22), ui.px(16));
+                card.setBackground(ui.interactive(ui.surface2, 26, ui.mix(ui.line, ui.accent, .35f))); card.setClickable(true); card.setFocusable(true);
                 LinearLayout heading = ui.horizontal(); heading.setGravity(Gravity.CENTER_VERTICAL);
-                FrameLayout tile = new FrameLayout(activity); tile.setBackground(ui.rect(ui.accentTint, 18, 0, 0));
-                tile.addView(ui.icon(R.drawable.ic_ui_audio, ui.accent, 36), new FrameLayout.LayoutParams(ui.px(36), ui.px(36), Gravity.CENTER));
-                heading.addView(tile, ui.lp(ui.px(68), ui.px(68), 0, 0, ui.px(18), 0));
+                FrameLayout tile = new FrameLayout(activity); tile.setBackground(ui.rect(ui.accentTint, 16, 0, 0));
+                tile.addView(ui.icon(R.drawable.ic_ui_audio, ui.accent, 32), new FrameLayout.LayoutParams(ui.px(32), ui.px(32), Gravity.CENTER));
+                heading.addView(tile, ui.lp(ui.px(60), ui.px(60), 0, 0, ui.px(16), 0));
                 LinearLayout names = ui.vertical();
-                TextView name = ui.text(preset.name, 36, ui.ink, true); name.setSingleLine(); name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                TextView name = ui.text(preset.name, 32, ui.ink, true); name.setSingleLine(); name.setEllipsize(android.text.TextUtils.TruncateAt.END);
                 names.addView(name);
-                names.addView(ui.text(preset.items().size() + " 个声音 · " + preset.categories().size() + " 个分类", 23, ui.muted, false), ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(2), 0, 0));
-                heading.addView(names, ui.lp(0, Ui.WRAP, 1)); card.addView(heading);
-                TextView description = ui.text(preset.description, 24, ui.muted, false); description.setMinLines(3); description.setMaxLines(3); description.setEllipsize(android.text.TextUtils.TruncateAt.END);
-                card.addView(description, ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(18), 0, ui.px(16)));
-                LinearLayout chips = ui.horizontal();
-                for (String category : preset.categories()) chips.addView(badge(category + " " + preset.inCategory(category).size(), ui.accent, ui.accentTint), ui.lp(Ui.WRAP, ui.px(36), 0, 0, ui.px(10), 0));
-                card.addView(chips, ui.lp(Ui.MATCH, Ui.WRAP));
-                LinearLayout action = ui.horizontal(); action.setGravity(Gravity.CENTER_VERTICAL);
-                action.addView(ui.text("选择并应用", 26, ui.accent, true), ui.lp(0, Ui.WRAP, 1)); action.addView(ui.text("›", 34, ui.accent, true));
-                card.addView(action, ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(22), 0, 0));
+                names.addView(ui.text(preset.items().size() + " 个声音 · " + preset.categories().size() + " 个分类", 22, ui.muted, false), ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(2), 0, 0));
+                heading.addView(names, ui.lp(0, Ui.WRAP, 1)); heading.addView(ui.text("›", 34, ui.accent, true)); card.addView(heading);
+                TextView description = ui.text(preset.description, 22, ui.muted, false); description.setMinLines(2); description.setMaxLines(2); description.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                card.addView(description, ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(10), 0, 0));
                 card.setContentDescription(I18n.text(activity, "内置预设 " + preset.name + "，" + preset.items().size() + " 个声音，点击选择并应用"));
                 card.setOnClickListener(v -> showBuiltin(preset)); row.addView(card, lp);
             }
-            builtinList.addView(row, ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(16)));
+            builtinList.addView(row, ui.lp(Ui.MATCH, Ui.WRAP, 0, 0, 0, ui.px(14)));
         }
     }
     /** Sounds as selectable cards, grouped by category, with per-sound preview; Apply writes the ticked sounds into the actual-sound configuration. */

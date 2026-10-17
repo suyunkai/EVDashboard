@@ -28,7 +28,10 @@ final class SshAccess implements AutoCloseable {
         context.getSharedPreferences("settings", 0).edit().putString("sshVerifiedHost", host).putBoolean("sshKeyChanged", false).apply();
     }
     byte[] command(String command,byte[] input,int seconds)throws Exception{
-        ChannelExec channel=(ChannelExec)session.openChannel("exec");channel.setCommand(command);if(input!=null)channel.setInputStream(new ByteArrayInputStream(input));else channel.setInputStream(null);
+        return stream(command,input==null?null:new ByteArrayInputStream(input),seconds);
+    }
+    byte[] stream(String command,InputStream input,int seconds)throws Exception{
+        ChannelExec channel=(ChannelExec)session.openChannel("exec");channel.setCommand(command);channel.setInputStream(input);
         // Polling getInputStream().available() makes Android's PipedInputStream wait for
         // its buffer on every SSH packet. Large WAVs then hit the command deadline.
         BoundedBytes output=new BoundedBytes(16*1024*1024),errors=new BoundedBytes(65535);

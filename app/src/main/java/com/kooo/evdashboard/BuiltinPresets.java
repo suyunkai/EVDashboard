@@ -6,7 +6,6 @@ import android.util.Log;
 import com.kooo.evdashboard.core.*;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.util.*;
 
 /** Presets shipped inside the APK (assets/presets/&lt;id&gt;/preset.json + audio/&lt;sha256&gt;.wav). Missing or damaged ones are skipped. */
@@ -40,13 +39,11 @@ final class BuiltinPresets {
 
     /** One replacement WAV, verified against the digest recorded in preset.json. */
     byte[] audio(SoundPreset preset, SoundPreset.Item item) throws Exception {
-        try (InputStream in = assets.open(ROOT + "/" + preset.id + "/" + item.file)) {
-            ByteArrayOutputStream out = new ByteArrayOutputStream(); FilesEx.transfer(in, out);
-            byte[] bytes = out.toByteArray();
-            FilesEx.require(bytes.length <= SoundWave.MAX_BYTES, "内置音频过大");
-            FilesEx.require(FilesEx.hex(MessageDigest.getInstance("SHA-256").digest(bytes)).equals(item.sha256), "内置音频校验失败");
-            return bytes;
-        }
+        String path = ROOT + "/" + preset.id + "/" + item.file;
+        InputStream input;
+        try {input = assets.open(path + ".packed");}
+        catch (FileNotFoundException missing) {return PresetAudio.read(assets.open(path), false, item.sha256);}
+        return PresetAudio.read(input, true, item.sha256);
     }
 
     private String text(String path) throws IOException {

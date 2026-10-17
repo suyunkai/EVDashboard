@@ -22,6 +22,7 @@ public final class RecoveryJobService extends JobService {
     }
     @Override public boolean onStartJob(JobParameters parameters) {
         if (!AutoApplyService.enabled(this)) {cancel(this); return false;}
+        if (AutoApplyService.running()) return false;
         PowerManager power = getSystemService(PowerManager.class);
         if (power != null && power.isInteractive()) AutoApplyService.start(this, "WATCHDOG");
         return false;

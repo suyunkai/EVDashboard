@@ -5,6 +5,7 @@ import java.util.Set;
 /** One bounded readiness window per wake burst; applying is never retried by this gate. */
 public final class StartupRecovery {
     public static final long WINDOW_MS = 180_000, COOLDOWN_MS = 30_000, SETTLE_MS = 2_000;
+    public static final long PROBE_INTERVAL_MS = 5 * 60_000;
     public static final String STR = "ecarx.intent.action.power.STRMODE";
     public static final Set<String> EVENTS = Set.of(
         "android.intent.action.BOOT_COMPLETED", "android.intent.action.LOCKED_BOOT_COMPLETED",
@@ -45,5 +46,5 @@ public final class StartupRecovery {
     public synchronized void finish(long now) {
         waiting = applying = false; blockedUntil = now + COOLDOWN_MS;
     }
-    public synchronized void cancelWaiting() {if (waiting) {waiting = false; generation++;}}
+    public synchronized void cancelWaiting() {blockedUntil = 0; if (waiting) {waiting = false; generation++;}}
 }

@@ -92,7 +92,7 @@ final class SoundPanel implements AutoCloseable {
         notes.addView(ui.text("启用后监听开机、用户切换和 STR 唤醒。CP 尚未就绪会等待重连，超时后仍定期检查；仅在当前资源与配置不一致时恢复。SSH 密钥变化无需确认，音效应用不再弹出驻车确认。", 26, ui.ink, false));
         automaticStatus = ui.text(preferences().getString("startupStatus", "等待开机或唤醒事件"), 25, ui.accent, true);
         automaticStatus.setTag("automatic-startup-status"); notes.addView(automaticStatus, ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(14), 0, ui.px(14)));
-        notes.addView(ui.text("请先打开应用一次并允许后台运行。亮屏时每分钟核对配置，系统定期任务负责补启监听服务；强制停止后仍需重新打开应用。休眠时不主动唤醒车机，空闲时不持有唤醒锁。", 24, ui.muted, false));
+        notes.addView(ui.text("请先打开应用一次并允许后台运行。恢复成功后，亮屏期间每 5 分钟轻量检查 CP 启动标识与实际挂载；未变化时不读取音频。系统定期任务仅补启已停止的监听服务。强制停止后需重新打开应用，休眠及空闲时不持有唤醒锁。", 24, ui.muted, false));
         root.addView(notes, ui.lp(Ui.MATCH, Ui.WRAP, 0, ui.px(18), 0, ui.px(22)));
         root.addView(buttonRow(
             smallButton("立即应用全部配置", Ui.Look.PRIMARY, v -> applyAll()),

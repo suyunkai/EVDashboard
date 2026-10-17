@@ -834,5 +834,14 @@
   " 个不同音频 · ": " unique sounds · ",
   "已回收未使用的临时音频 · ": "Reclaimed unused temporary audio · ",
   "声音已核验；旧临时音频稍后再清理：": "Sounds verified; old temporary audio cleanup deferred: ",
-  "压缩传输大小 · ": "Compressed transfer size · "
+  "压缩传输大小 · ": "Compressed transfer size · ",
+  "请先打开应用一次并允许后台运行。恢复成功后，亮屏期间每 5 分钟轻量检查 CP 启动标识与实际挂载；未变化时不读取音频。系统定期任务仅补启已停止的监听服务。强制停止后需重新打开应用，休眠及空闲时不持有唤醒锁。": "Open the app once and allow background operation. After recovery, it checks the CP boot ID and actual mounts every 5 minutes while awake, without reading audio when unchanged. The scheduled job only restarts an absent monitor. Reopen after a force stop. No wake lock is held during sleep or idle.",
+  "当前声音已符合配置，等待唤醒并每 5 分钟轻量检查": "Sounds match; waiting for wake events with lightweight checks every 5 minutes",
+  "声音配置已恢复，等待唤醒并每 5 分钟轻量检查": "Sounds restored; waiting for wake events with lightweight checks every 5 minutes",
+  "声音自动恢复已启用，等待检查": "Sound recovery enabled; awaiting a check",
+  "自动恢复核验记录无效": "Invalid sound recovery verification record",
+  "不支持的自动恢复核验记录": "Unsupported sound recovery verification record",
+  "声音目录包含重复路径": "The sound catalog contains duplicate paths",
+  "CP 轻量检查响应无效": "Invalid CP probe response",
+  "CP 启动标识无效": "Invalid CP boot ID"
 }

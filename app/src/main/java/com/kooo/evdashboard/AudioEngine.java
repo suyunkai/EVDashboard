@@ -18,6 +18,38 @@ final class AudioEngine {
     private final SoundStore store;
     private int lastDownloaded;
     private Prepared prepared;
+    private Map<String, String> lastMounts = Collections.emptyMap();
+    private boolean lightCheck;
+    private static final String PROCESS_BOOT = UUID.randomUUID().toString();
+    boolean lightCheck() {return lightCheck;}
+    private File recoveryFile() {return new File(context.getFilesDir(), "sound-recovery.json");}
+    private String androidBoot() {
+        int boot = android.provider.Settings.Global.getInt(context.getContentResolver(), android.provider.Settings.Global.BOOT_COUNT, -1);
+        return boot >= 0 ? "boot-" + boot : "process-" + PROCESS_BOOT;
+    }
+    private void invalidateRecovery() throws Exception {Files.deleteIfExists(recoveryFile().toPath());}
+    private SoundRecoveryState previousRecovery() {
+        try {
+            File file = recoveryFile();
+            return file.isFile() && file.length() <= 128 * 1024 ? SoundRecoveryState.parse(FilesEx.readText(file)) : null;
+        } catch (Exception ignored) {return null;}
+    }
+    private void saveRecovery(String boot, String rulesHash, List<SoundStore.Entry> entries, Set<String> configured) throws Exception {
+        Set<String> found = new HashSet<>();
+        for (SoundStore.Entry e : entries) {
+            if (configured.contains(e.path)) {if (!e.overlay.equals("OWN")) return; found.add(e.path);}
+            else if (e.overlay.equals("OWN")) return;
+        }
+        if (!found.equals(configured)) return;
+        if (rulesHash.equals(rulesHash()) && !context.getSharedPreferences("settings", 0).getBoolean("startupApplyUncertain", false))
+            FilesEx.atomicText(recoveryFile(), new SoundRecoveryState(androidBoot(), boot, identity(context), rulesHash,
+                SoundRecoveryState.catalogHash(entries), lastMounts).json());
+    }
+    private SoundRecoveryState.Probe probe(SshAccess ssh) throws Exception {
+        // A single small command, without WAV access, decoding or hashing.
+        return new SoundRecoveryState.Probe(ssh.text("test ! -d " + q(ROOT + "/operation.lock") + " && test -d /run && test -d " + q(SoundCatalog.CHIMES)
+            + " && { printf 'BOOT\\t'; cat /proc/sys/kernel/random/boot_id; awk '$5 != \"/\" {print \"MOUNT\\t\" $5 \"\\t\" $4}' /proc/self/mountinfo; }", 12));
+    }
     static final class Prepared {
         final List<SoundStore.Entry> entries;
         final String rulesHash, identity, boot;
@@ -29,7 +61,7 @@ final class AudioEngine {
     Prepared prepared() {return prepared;}
     private String rulesHash() throws Exception {
         File file = new File(context.getFilesDir(), "instrument-sounds/rules.json");
-        return file.isFile() ? FilesEx.digest(file) : "";
+        return file.isFile() ? FilesEx.digest(file) : FilesEx.hashText("");
     }
     AudioEngine(Context context, Consumer<String> progress) throws Exception {this(context, progress, true);}
     AudioEngine(Context context, Consumer<String> progress, boolean taskProgress) throws Exception {
@@ -58,8 +90,7 @@ final class AudioEngine {
         return mounts;
     }
     private static boolean relevantMount(String target) {
-        for (String root : SoundCatalog.ROOTS) if (target.startsWith(root) || root.startsWith(target + "/") || root.equals(target + "/")) return true;
-        return false;
+        return SoundRecoveryState.relevant(target);
     }
     private String overlayRoot(Map<String, String> mounts, String path) {
         String result = "", longest = "";
@@ -82,7 +113,7 @@ final class AudioEngine {
         ssh.text("if [ -d " + q(ROOT + "/operation.lock") + " ]; then echo 'CP 音效任务仍在执行或锁尚未恢复，请先核对上次任务记录' >&2; exit 60; fi", 10);
         StringBuilder command = new StringBuilder();
         for (String root : SoundCatalog.ROOTS) command.append("if [ -d ").append(q(root)).append(" ]; then find ").append(q(root)).append(" -maxdepth 1 -type f -iname '*.wav'; fi\n");
-        String found = ssh.text(command.toString(), 15); Map<String, String> mounts = mounts(ssh);
+        String found = ssh.text(command.toString(), 15); Map<String, String> mounts = mounts(ssh); lastMounts = mounts;
         List<String> paths = new ArrayList<>();
         for (String path : found.split("\n")) if (SoundCatalog.allowedPath(path) && !paths.contains(path)) paths.add(path);
         FilesEx.require(!paths.isEmpty() && paths.size() <= 128, "未发现支持的 CP 音频资源或数量异常");
@@ -136,13 +167,22 @@ final class AudioEngine {
     }
     /** Retryable readiness work is strictly read-only on CP. */
     boolean prepareAutomatic() throws Exception {
+        return prepareAutomatic(false);
+    }
+    boolean prepareAutomatic(boolean forceFull) throws Exception {
         prepared = null;
+        lightCheck = false;
         requireAutomaticAllowed();
         try (SshAccess ssh = new SshAccess(context)) {
             ssh.connect("");
-            String boot = ssh.text("test ! -d " + q(ROOT + "/operation.lock") + " && test -d /run && test -d " + q(SoundCatalog.CHIMES)
-                + " && cat /proc/sys/kernel/random/boot_id", 10).trim();
+            SoundRecoveryState.Probe probe = probe(ssh); String boot = probe.boot;
             String rulesHash = rulesHash();
+            SoundRecoveryState previous = previousRecovery();
+            if (!forceFull && !context.getSharedPreferences("settings", 0).getBoolean("startupApplyUncertain", false)
+                && previous != null && previous.matches(androidBoot(), boot, identity(context), rulesHash, SoundRecoveryState.catalogHash(store.entries()), probe.mounts)) {
+                lightCheck = true; return false;
+            }
+            invalidateRecovery();
             Map<String, SoundStore.Rule> rules = store.rules();
             List<SoundStore.Entry> entries = refresh(ssh);
             Set<String> found = new HashSet<>(); boolean needed = false;
@@ -158,7 +198,7 @@ final class AudioEngine {
             FilesEx.require(found.size() == rules.size(), "配置中的声音在当前 CP 上不存在，请重新读取");
             FilesEx.require(!needed || !context.getSharedPreferences("settings", 0).getBoolean("startupApplyUncertain", false),
                 "上次覆盖结果待确认，请手动应用配置后再自动恢复");
-            if (!needed) clearUncertain();
+            if (!needed) {clearUncertain(); saveRecovery(boot, rulesHash, entries, rules.keySet());}
             if (needed) prepared = new Prepared(entries, rulesHash, identity(context), boot);
             return needed;
         }
@@ -172,16 +212,17 @@ final class AudioEngine {
     }
     void apply(String password, boolean automatic, Set<String> scope, Prepared ready) throws Exception {
         boolean unresolved = context.getSharedPreferences("settings", 0).getBoolean("startupApplyUncertain", false);
+        String applyingRulesHash = rulesHash();
         Map<String, SoundStore.Rule> rules = store.rules();
         if (automatic) requireAutomaticAllowed();
         try (SshAccess ssh = new SshAccess(context)) {
-            ssh.connect(password);
+            ssh.connect(password); SoundRecoveryState.Probe current = probe(ssh); lastMounts = current.mounts;
             // Reuse only the immediately preceding automatic check. The CP boot, rules,
             // address and every changed target's digest are still checked before switching.
             List<SoundStore.Entry> entries = null;
             if (automatic && ready != null && System.nanoTime() - ready.at < 20_000_000_000L
                 && ready.identity.equals(identity(context)) && ready.rulesHash.equals(rulesHash())) {
-                String boot = ssh.text("test ! -d " + q(ROOT + "/operation.lock") + " && cat /proc/sys/kernel/random/boot_id", 10).trim();
+                String boot = current.boot;
                 if (!boot.isEmpty() && ready.boot.equals(boot)) {entries = ready.entries; progress.accept("复用刚完成的声音核对，准备批量传输。");}
             }
             if (entries == null) entries = refresh(ssh);
@@ -207,8 +248,9 @@ final class AudioEngine {
                 if (rule != null) uploads.put(desired, store.asset(desired));
                 changes.add(new AudioPlan.Change(e.path, replacement, e.current)); services.addAll(spec.services);
             }
-            if (changes.isEmpty()) {SoundSync.verify(expected, entries); if (scope == null) clearUncertain(); cleanup(ssh); progress.accept("当前声音已符合配置，无需重复覆盖。"); return;}
+            if (changes.isEmpty()) {SoundSync.verify(expected, entries); if (scope == null) {clearUncertain(); saveRecovery(current.boot, applyingRulesHash, entries, rules.keySet());} cleanup(ssh); progress.accept("当前声音已符合配置，无需重复覆盖。"); return;}
             if (automatic) requireAutomaticAllowed();
+            invalidateRecovery();
             establish(ssh);
             long uploadBytes = 0; for (File file : uploads.values()) uploadBytes += file.length();
             long backupBytes = 0; for (AudioPlan.Change c : changes) backupBytes += store.asset(byPath.get(c.target).original).length();
@@ -243,8 +285,9 @@ final class AudioEngine {
             FilesEx.require(context.getSharedPreferences("settings", 0).edit().putBoolean("startupApplyUncertain", true).commit(), "无法保存覆盖任务状态");
             run(ssh, stage, AudioPlan.batch(changes, services, stage));
             if (measured != null) measured.stage("校验覆盖结果", 0);
-            SoundSync.verify(expected, refresh(ssh));
+            List<SoundStore.Entry> verified = refresh(ssh); SoundSync.verify(expected, verified);
             if (scope == null || !unresolved) clearUncertain();
+            if (scope == null) saveRecovery(current.boot, applyingRulesHash, verified, rules.keySet());
             cleanup(ssh);
             progress.accept("配置已应用，资源摘要和播放服务检查通过。实际车外/仪表声音仍需现场确认。");
         }

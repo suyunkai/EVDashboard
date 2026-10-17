@@ -4,6 +4,11 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class StartupRecoveryTest {
+    @Test public void idleProbeIntervalIsFiveMinutesAndSleepClearsOldCooldown() {
+        assertEquals(300_000, StartupRecovery.PROBE_INTERVAL_MS);
+        StartupRecovery gate = new StartupRecovery(30_000);
+        assertFalse(gate.request(100)); gate.cancelWaiting(); assertTrue(gate.request(101));
+    }
     @Test public void bootAndWakeEventsAreAllowlistedWithoutGenericBroadcastCommands() {
         assertTrue(StartupRecovery.EVENTS.contains("android.intent.action.BOOT_COMPLETED"));
         assertTrue(StartupRecovery.EVENTS.contains("android.intent.action.USER_UNLOCKED"));

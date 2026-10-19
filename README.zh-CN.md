@@ -17,7 +17,7 @@
 
 ## 下载应用
 
-当前版本为 **[v0.2.8](https://github.com/suyunkai/EVDashboard/releases/tag/v0.2.8)**。请从发行页附件下载 APK 及其 `.sha256` 校验文件。
+当前版本为 **[v0.2.10](https://github.com/suyunkai/EVDashboard/releases/tag/v0.2.10)**。请从发行页附件下载 APK 及其 `.sha256` 校验文件。
 
 | 项目 | 说明 |
 | --- | --- |

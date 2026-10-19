@@ -17,7 +17,7 @@ An Android app for instrument CP image maintenance and instrument chime customiz
 
 ## Download
 
-The current version is **[v0.2.8](https://github.com/suyunkai/EVDashboard/releases/tag/v0.2.8)**. Download the APK and its `.sha256` checksum from the release assets.
+The current version is **[v0.2.10](https://github.com/suyunkai/EVDashboard/releases/tag/v0.2.10)**. Download the APK and its `.sha256` checksum from the release assets.
 
 | Item | Details |
 | --- | --- |
